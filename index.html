@@ -354,10 +354,16 @@ document.addEventListener('focusout',()=>setTimeout(()=>{if(stale&&!busy()){stal
 
 /* ---------- telegram / sharing ---------- */
 const tgReady=()=>S.settings.token&&S.settings.chat;
+const cleanToken=t=>(String(t||'').match(/\d{5,}:[\w-]{20,}/)||[''])[0];
 async function tg(method,fields){
-  const fd=new FormData();for(const k in fields){const v=fields[k];Array.isArray(v)?fd.append(k,v[0],v[1]):fd.append(k,v)}
-  const r=await fetch(`https://api.telegram.org/bot${S.settings.token.trim()}/${method}`,{method:'POST',body:fd});
-  const j=await r.json();if(!j.ok)throw new Error(j.description||'Telegram error');return j.result;
+  const tok=cleanToken(S.settings.token);
+  if(!tok)throw new Error('that does not look like a bot token. It should look like 123456789:AAF… with nothing else around it');
+  let body;
+  if(Object.values(fields).some(Array.isArray)){body=new FormData();for(const k in fields){const v=fields[k];Array.isArray(v)?body.append(k,v[0],v[1]):body.append(k,v)}}
+  else{body=new URLSearchParams();for(const k in fields)body.append(k,fields[k])}
+  const r=await fetch(`https://api.telegram.org/bot${tok}/${method}`,{method:'POST',body});
+  const t=await r.text();let j;try{j=JSON.parse(t)}catch(e){throw new Error('unexpected reply from Telegram (status '+r.status+')')}
+  if(!j.ok)throw new Error(j.description||'Telegram error');return j.result;
 }
 async function tgSafe(method,fields,okMsg){
   if(!S.settings.token){toast('Connect Telegram on the Home screen first');return false}
@@ -714,13 +720,13 @@ const A={
   nRemindShare:(d,b)=>{const t=b.form.t.value.trim();if(!t){toast('Write the reminder first');return}share({text:'🔔 '+t})},
   who:d=>{L.who=d.k;saveL();render()},
   tTest:async()=>{if(await tgSafe('sendMessage',{chat_id:S.settings.chat,text:'🏡 Nest & Nibbles is connected!'},'Telegram is connected'))render()},
-  tFind:async()=>{const ti=$('#tgtoken');if(ti&&ti.value.trim()){S.settings.token=ti.value.trim();save()}
+  tFind:async()=>{const ti=$('#tgtoken');if(ti&&ti.value.trim()){S.settings.token=cleanToken(ti.value)||ti.value.trim();ti.value=S.settings.token;save()}
     if(!S.settings.token){toast('Paste the bot token first');return}
     const out=$('#chats');if(out)out.innerHTML='<p class="muted">Looking for chats…</p>';
     try{let ups;try{ups=await tg('getUpdates',{})}catch(e){if(/webhook/i.test(e.message)){await tg('deleteWebhook',{});ups=await tg('getUpdates',{})}else throw e}
       const seen={};for(const u of ups){const c=(u.message||u.my_chat_member||u.channel_post||{}).chat;if(c)seen[c.id]=c}
       const cs=Object.values(seen);$('#chats').innerHTML=cs.length?cs.map(c=>`<div class="item"><div class="t">${esc(c.title||[c.first_name,c.last_name].filter(Boolean).join(' '))}<small>${esc(c.type)} · ${esc(c.id)}</small></div>${c.type==='private'?`<button class="btn sm soft" data-a="tUse" data-k="chatA" data-v="${esc(c.id)}">${esc(S.settings.a)}</button><button class="btn sm soft" data-a="tUse" data-k="chatB" data-v="${esc(c.id)}">${esc(S.settings.b)}</button>`:`<button class="btn sm" data-a="tUse" data-k="chat" data-v="${esc(c.id)}">Use as group</button>`}</div>`).join(''):'<p class="muted">The token works, but the bot has not seen any chat yet. Remove the bot from the group, add it again, send a message in the group, then tap Find our chats again.</p>'}
-    catch(e){const m=/Unauthorized|Not Found/i.test(e.message)?'Telegram does not recognise that token. Copy it again from @BotFather.':/Failed to fetch|Load failed|NetworkError/i.test(e.message)?'Could not reach Telegram from this device. Check the connection or any content blocker.':'Telegram said: '+e.message;const o=$('#chats');if(o)o.innerHTML='<p class="muted">'+esc(m)+'</p>';toast(m)}},
+    catch(e){const m=/does not look like/.test(e.message)?'T'+e.message.slice(1)+'.':/Unauthorized|Not Found/i.test(e.message)?'Telegram does not recognise that token. Copy it again from @BotFather.':/Failed to fetch|Load failed|NetworkError/i.test(e.message)?'Could not reach Telegram from this device. Check the connection or any content blocker.':'Telegram said: '+e.message;const o=$('#chats');if(o)o.innerHTML='<p class="muted">'+esc(m)+'</p>';toast(m)}},
   tUse:(d,b)=>{S.settings[d.k]=d.v;save();b.textContent='Selected';toast('Saved')},
   sSign:async()=>{
     const say=m=>{const e=$('#syncmsg');if(e)e.textContent=m};
