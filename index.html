@@ -130,11 +130,32 @@ li.done span{text-decoration:line-through;color:#b3a8a1;font-weight:500}
 .rc.pick{outline:2px solid var(--clay)}
 
 /* spinner */
+.hero{display:flex;flex-direction:column;align-items:center;gap:8px;padding:28px 20px 22px;text-align:center}
+.bigmic{width:116px;height:116px;border-radius:50%;background:var(--plum);color:#fff;display:grid;place-items:center;margin-bottom:10px;box-shadow:0 0 0 10px var(--plum-t),0 12px 28px rgba(140,98,147,.35)}
+.bigmic svg{width:48px;height:48px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bigmic:active{transform:scale(.96)}
+.bigmic.on{background:var(--clay);box-shadow:0 0 0 10px var(--clay-t);animation:ring 1.1s infinite}
+@keyframes ring{50%{box-shadow:0 0 0 24px rgba(211,120,43,.16)}}
+.hero b{font-size:18px}
+#heard{min-height:24px;color:var(--plum);font-weight:700}
+.hero .addbar{margin:10px 0 0;width:100%;max-width:520px}
 .spin{max-width:560px;margin:0 auto}
+.wheelbox.go:before{animation:tick .12s linear infinite alternate;transform-origin:50% 0}
+@keyframes tick{from{transform:rotate(-16deg)}to{transform:rotate(10deg)}}
+.hub{animation:breathe 2.4s ease-in-out infinite}
+.wheelbox.go .hub{animation:none;transform:scale(.9)}
+@keyframes breathe{50%{transform:scale(1.08)}}
+.wheelbox.win canvas{animation:glow .9s ease-in-out 2}
+@keyframes glow{50%{box-shadow:0 0 0 6px #fff,0 0 0 16px var(--clay-t),0 10px 28px rgba(47,33,26,.12)}}
+.result.rolling{color:#b3a8a1}
+.result.pop{animation:pop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:15}
+.keybox{font:700 15px/1.5 ui-monospace,Menlo,monospace;background:var(--paper);border-radius:10px;padding:10px 12px;overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
 .spin .seg{flex-wrap:nowrap;box-shadow:none;background:var(--paper);max-width:100%}
 .spin .seg button{padding:0 11px;font-size:13px;white-space:nowrap}
 .wheelbox{position:relative;width:min(340px,100%);aspect-ratio:1;margin:28px auto 16px;display:grid;place-items:center}
-.wheelbox canvas{grid-area:1/1;display:block;width:100%;height:100%;border-radius:50%;box-shadow:0 0 0 6px #fff,0 10px 28px rgba(47,33,26,.12);transition:transform 4.2s cubic-bezier(.12,.75,.1,1)}
+.wheelbox canvas{grid-area:1/1;display:block;width:100%;height:100%;border-radius:50%;box-shadow:0 0 0 6px #fff,0 10px 28px rgba(47,33,26,.12);transition:transform 5s cubic-bezier(.1,.7,.08,1)}
 .wheelbox:before{content:"";position:absolute;z-index:3;left:50%;top:-16px;width:0;height:0;margin-left:-13px;border:13px solid transparent;border-top:24px solid var(--ink)}
 .hub{grid-area:1/1;position:relative;z-index:2;width:84px;height:84px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(47,33,26,.18);font-weight:800;font-size:15px;letter-spacing:.06em;color:var(--plum);display:grid;place-items:center;line-height:1}
 .login{max-width:400px;margin:8vh auto 0}
@@ -247,14 +268,22 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 
 /* ---------- private sync: Firebase sign-in + Realtime Database over REST ---------- */
 const SYNCED=[...LISTS,'settings','lastDigest','lastSent'];
-const Sync={es:null,tok:'',timer:null,snap:{},on:false,msg:'',
+async function idp(path,body){
+  const r=await fetch('https://identitytoolkit.googleapis.com/'+path+'?key='+encodeURIComponent(L.key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();if(j.error)throw new Error(j.error.message);return j;
+}
+const Sync={es:null,tok:'',timer:null,snap:{},on:false,msg:'',pending:null,
   base:()=>L.fb.replace(/\/+$/,'')+'/nest',
   ready:()=>/^https:\/\//.test(L.fb)&&!!L.key&&!!L.rt,
   state(on,msg){this.on=on;this.msg=on?'Signed in and syncing.':(msg||'');renderNav();const e=$('#syncmsg');if(e)e.textContent=this.msg},
   async signIn(pw){
-    const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+encodeURIComponent(L.key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:L.email,password:pw,returnSecureToken:true})});
-    const j=await r.json();if(j.error)throw new Error(j.error.message);
+    const j=await idp('v1/accounts:signInWithPassword',{email:L.email,password:pw,returnSecureToken:true});
+    if(j.mfaPendingCredential){const f=(j.mfaInfo||[])[0]||{};this.pending={cred:j.mfaPendingCredential,id:f.mfaEnrollmentId};throw Object.assign(new Error('second step needed'),{mfa:true})}
     this.tok=j.idToken;L.rt=j.refreshToken;saveL();
+  },
+  async second(code){
+    const j=await idp('v2/accounts/mfaSignIn:finalize',{mfaPendingCredential:this.pending.cred,mfaEnrollmentId:this.pending.id,totpVerificationInfo:{verificationCode:code}});
+    this.pending=null;this.tok=j.idToken;L.rt=j.refreshToken;saveL();
   },
   async refresh(){
     const r=await fetch('https://securetoken.googleapis.com/v1/token?key='+encodeURIComponent(L.key),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(L.rt)});
@@ -301,6 +330,22 @@ function signOut(msg){
   Sync.stop();L.rt='';saveL();
   if(GATED){try{localStorage.removeItem(KEY)}catch(e){}S=DEFAULTS();fix()}
   Sync.msg=msg||'Signed out on this device.';render();
+}
+let mfa={on:false,verified:true,session:null,known:false};
+const mfaErr=e=>/UNVERIFIED_EMAIL/.test(e.message)?'Verify the household email first, then try again.':/OPERATION_NOT_ALLOWED|not enabled|MFA/i.test(e.message)&&!/INVALID/.test(e.message)?'Two-step sign-in is not switched on for the Firebase project yet.':/CREDENTIAL_TOO_OLD|LOGIN_AGAIN/.test(e.message)?'Sign out, sign in again, then retry.':/INVALID_CODE|INVALID_MFA|verification code/i.test(e.message)?'That code was not accepted. Wait for the next one and try again.':'Could not do that: '+e.message;
+async function mfaStatus(){
+  if(!$('#mfabox'))return;mfaUI();
+  try{if(!Sync.tok)await Sync.refresh();const u=(await idp('v1/accounts:lookup',{idToken:Sync.tok})).users[0];mfa.on=(u.mfaInfo||[]).length>0;mfa.verified=!!u.emailVerified;mfa.known=true}catch(e){return}
+  mfaUI();
+}
+function mfaUI(msg){
+  const box=$('#mfabox');if(!box)return;const s=mfa.session,m=msg?`<p class="muted" style="margin-top:10px">${esc(msg)}</p>`:'';
+  if(s){const link='otpauth://totp/'+encodeURIComponent('Nest & Nibbles:'+L.email)+'?secret='+encodeURIComponent(s.sharedSecretKey)+'&issuer='+encodeURIComponent('Nest & Nibbles');
+    box.innerHTML=`<ol><li>Add this key to an authenticator app on <b>both</b> phones (Apple Passwords, Google Authenticator or similar), before confirming.</li></ol><div class="keybox">${esc(s.sharedSecretKey)}</div>
+    <div class="row" style="margin-top:10px"><a class="btn sm soft" href="${esc(link)}">Open in authenticator app</a></div>
+    <label>Then enter the 6-digit code it shows</label><div class="row"><input id="mfacode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" style="flex:1;min-width:120px"><button class="btn" data-a="mfaFinish">Confirm</button><button class="btn ghost" data-a="mfaCancel">Cancel</button></div>${m}`;return}
+  box.innerHTML=!mfa.known?`<p class="muted">Checking…</p>${m}`:mfa.on?`<p><span class="due">On</span> <span class="muted">Signing in needs the password and a code.</span></p>${m}`
+    :`<p><span class="due soon">Off</span> <span class="muted">Signing in only needs the password.</span></p><div class="row" style="margin-top:12px"><button class="btn" data-a="mfaStart">Turn on two-step sign-in</button>${mfa.verified?'':'<button class="btn soft" data-a="mfaVerify">Send verification email</button>'}</div>${mfa.verified?'':'<p class="muted" style="margin-top:8px">The household email has to be verified first.</p>'}${m}`;
 }
 let stale=false;
 const busy=()=>{const a=document.activeElement;return $('#modal').classList.contains('on')||spinning||(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))};
@@ -356,12 +401,12 @@ const FRIDGE=/milk|egg|cheese|yog|butter|cream|meat|chicken|fish|ham|bacon|tofu|
 const MIC='<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.500V21"/></svg>';
 let sr=null;
 function mic(btn){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition,inp=$('#gin');
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition,inp=$('#gin'),hint=$('#michint'),heard=$('#heard');
   if(!SR){inp.focus();toast('Tap the microphone on the keyboard to dictate');return}
   if(sr){sr.stop();return}
-  sr=new SR();sr.lang=navigator.language||'en-SG';sr.interimResults=true;btn.classList.add('on');inp.placeholder='Listening. Say "milk, eggs and bread"';
-  sr.onresult=e=>{inp.value=[...e.results].map(r=>r[0].transcript).join(' ')};
-  sr.onerror=e=>{if(e.error!=='no-speech'&&e.error!=='aborted')toast('Microphone: '+e.error+'. Try the keyboard microphone instead.')};
+  sr=new SR();sr.lang=navigator.language||'en-SG';sr.interimResults=true;btn.classList.add('on');inp.placeholder='Listening';if(hint)hint.textContent='Listening. Tap again when you are done.';
+  sr.onresult=e=>{inp.value=[...e.results].map(r=>r[0].transcript).join(' ');if(heard)heard.textContent=inp.value};
+  sr.onerror=e=>{if(e.error!=='no-speech'&&e.error!=='aborted')toast(e.error==='not-allowed'?'Allow microphone access for this site in Safari settings':'Microphone: '+e.error+'. Try the keyboard microphone instead.')};
   sr.onend=()=>{sr=null;const v=inp.value.trim();if(v)addGroceries(splitItems(v));render()};
   try{sr.start()}catch(e){sr=null;btn.classList.remove('on')}
 }
@@ -370,7 +415,8 @@ const gForm=()=>`<form class="addbar" data-f="gAdd"><input id="gin" name="t" pla
 function vGroceries(){
   const need=S.groceries.filter(g=>!g.done),got=S.groceries.filter(g=>g.done);
   return `<div class="head"><h1>Grocery list</h1><span class="muted end" id="gsync">${tgReady()?(S.settings.auto?'Sends to Telegram when it changes':'Auto-send is off'):'Telegram is not connected yet'}</span></div>
-  ${gForm()}
+  <div class="card hero"><button class="bigmic" data-a="mic" aria-label="Speak your grocery list">${MIC}</button><b id="michint">Tap and say what you need</b><div class="muted">For example: milk, eggs and bread</div><div id="heard" aria-live="polite"></div>
+    <form class="addbar" data-f="gAdd"><input id="gin" name="t" placeholder="Or type it here" autocomplete="off" enterkeyhint="done"><button class="btn ghost">Add</button></form></div>
   <div class="board">${S.groceries.length?`<ul>${need.map(gLi).join('')}${got.map(gLi).join('')}</ul>`:`<div class="empty">Nothing to buy. Type or tap the microphone to add things.</div>`}</div>
   <div class="row">
     <button class="btn" data-a="gSend">Send to Telegram</button>
@@ -465,16 +511,27 @@ function drawWheel(){
     let t=items[i];if(t.length>18)t=t.slice(0,17)+'…';x.fillText(t,R-14,0);x.restore();
   }
 }
+function confetti(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const w=$('.wheelbox');if(!w)return;const r=w.getBoundingClientRect(),c=document.createElement('canvas');c.id='confetti';c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);
+  const x=c.getContext('2d'),P=Array.from({length:120},()=>{const a=Math.random()*Math.PI*2,v=5+Math.random()*10;return{x:r.left+r.width/2,y:r.top+r.height/2,vx:Math.cos(a)*v,vy:Math.sin(a)*v-5,s:6+Math.random()*7,c:PAL[Math.floor(Math.random()*4)],r:Math.random()*6,vr:(Math.random()-.5)*.4}}),t0=performance.now();
+  (function f(t){const k=(t-t0)/2000;if(k>=1){c.remove();return}x.clearRect(0,0,c.width,c.height);x.globalAlpha=1-k*k;
+    for(const p of P){p.vy+=.35;p.vx*=.985;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/3,p.s,p.s*.66);x.restore()}
+    requestAnimationFrame(f)})(t0);
+}
 function spin(){
   const items=spinItems(),n=items.length;if(spinning)return;if(n<2){toast('Add at least two options first');return}
-  const i=Math.floor(Math.random()*n),seg=360/n,jit=(Math.random()-.5)*seg*.7;
-  rot=rot-(rot%360)+360*6+(360-(i+.5)*seg)+jit;spinning=true;spinResult='';$('#result').textContent='';$('#after').innerHTML='';
+  const i=Math.floor(Math.random()*n),seg=360/n,jit=(Math.random()-.5)*seg*.7,box=$('.wheelbox'),res=$('#result');
+  rot=rot-(rot%360)+360*8+(360-(i+.5)*seg)+jit;spinning=true;spinResult='';$('#after').innerHTML='';
+  box.classList.remove('win');box.classList.add('go');res.className='result rolling';
+  const roll=setInterval(()=>{const e=$('#result');if(e)e.textContent=items[Math.floor(Math.random()*n)]},110);
   $('#wheel').style.transform=`rotate(${rot}deg)`;
-  setTimeout(()=>{spinning=false;spinResult=items[i];if(tab!=='spin'||!$('#result')){if(stale)softRender();return}
-    $('#result').textContent=items[i];
+  setTimeout(()=>{clearInterval(roll);spinning=false;spinResult=items[i];if(tab!=='spin'||!$('#result')){if(stale)softRender();return}
+    $('.wheelbox').classList.remove('go');$('.wheelbox').classList.add('win');
+    const r=$('#result');r.textContent=items[i];r.className='result pop';confetti();
     let h='';if(spinMode==='decide')h=items[i]==='Cook'?`<button class="btn leaf" data-a="sMode" data-k="cook">Now spin what to cook</button>`:`<button class="btn" data-a="sMode" data-k="out">Now spin where to go</button>`;
     else h=`<button class="btn soft" data-a="sTell">Tell the group</button>`+(spinMode==='cook'?` <button class="btn soft" data-a="sRecipe">See recipe</button>`:'');
-    $('#after').innerHTML=h;if(stale)softRender()},4300);
+    $('#after').innerHTML=h;if(stale)softRender()},5100);
 }
 function vSpin(){
   return `<div class="head"><h1>What are we eating?</h1></div>
@@ -535,7 +592,8 @@ function vHome(){
     <button class="tile t4" data-a="go" data-k="inv"><span>In the kitchen</span><b>${S.inv.length}</b></button>
   </div>
   ${tgReady()?'':`<div class="card"><h2>Connect your Telegram group</h2><p class="muted">One-time step. Add your bot to the group, send a message there, then paste the bot token and pick the chat. This card disappears once it is connected.</p>
-    <div class="row" style="margin-top:12px"><input data-s="token" type="password" value="${esc(S.settings.token)}" placeholder="Bot token from @BotFather" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:200px"><button class="btn soft" data-a="tFind">Find our chats</button><button class="btn" data-a="tTest">Send a test and finish</button></div><div id="chats" style="margin-top:8px"></div></div>`}
+    <div class="row" style="margin-top:12px"><input id="tgtoken" data-s="token" type="text" value="${esc(S.settings.token)}" placeholder="Bot token from @BotFather" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:200px"><button class="btn soft" data-a="tFind">Find our chats</button><button class="btn" data-a="tTest">Send a test and finish</button></div><div id="chats" style="margin-top:8px"></div>
+    <details><summary>Enter the group chat ID by hand</summary><input data-s="chat" value="${esc(S.settings.chat)}" placeholder="-100…" inputmode="text" autocomplete="off"></details></div>`}
   <div class="grid two"><div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Grocery list</h2><button class="btn sm ghost" data-a="go" data-k="groceries">Open list</button></div>
     ${gForm()}<ul class="glist">${need.length?need.slice(0,6).map(gLi).join('')+(need.length>6?`<li class="muted" style="font-weight:500">and ${need.length-6} more</li>`:''):'<li class="muted" style="font-weight:500">All stocked up.</li>'}</ul></div>
   <div><div class="card" style="margin-bottom:16px"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Tonight</h2><button class="btn sm ghost" data-a="go" data-k="spin">Spin the wheel</button></div>
@@ -554,6 +612,7 @@ function vSettings(){
   <div class="card"><h2>Our nest</h2><div class="row" style="align-items:flex-end"><div style="flex:1;min-width:130px">${f('a','First name')}</div><div style="flex:1;min-width:130px">${f('b','Second name')}</div></div>
     <label>This device belongs to</label><div class="seg" style="box-shadow:none;background:var(--paper)">${['a','b'].map(k=>`<button class="${L.who===k?'on':''}" data-a="who" data-k="${k}">${esc(s[k])}</button>`).join('')}</div>
     ${GATED?`<div class="row" style="margin-top:16px"><span class="muted" style="flex:1">Signed in as ${esc(L.email)}</span><button class="btn sm ghost" data-a="sOut">Sign out</button></div>`:''}</div>
+  ${GATED?`<div class="card"><h2>Two-step sign-in</h2><p class="muted">Adds a 6-digit code from an authenticator app on top of the password, every time someone signs in.</p><div id="mfabox" style="margin-top:12px"></div></div>`:''}
   <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scNotes','Shortcut that saves the grocery list to Notes')}${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}
     <details><summary>How to make the two shortcuts</summary><p class="muted"><b>${esc(s.scNotes)}</b>: in the Shortcuts app tap +, add the action Append to Note, set the text to Shortcut Input and choose a shared note called Groceries. Name the shortcut exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Share the Notes note with your partner so it shows on both phones. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
   </div><div>
@@ -577,11 +636,13 @@ function renderNav(){
   const badge={groceries:S.groceries.filter(g=>!g.done).length,routines:S.routines.filter(r=>dueIn(r)<=0).length,inv:S.inv.filter(x=>x.exp&&dayDiff(x.exp,today())<=1).length};
   $('#nav').innerHTML=`<div class="brand">Nest &amp;<br>Nibbles</div>`+TABS.map(([k,l])=>`<button class="tab ${tab===k?'on':''}" data-a="go" data-k="${k}"><svg viewBox="0 0 24 24">${I[k]}</svg>${l}${badge[k]?`<b>${badge[k]}</b>`:''}</button>`).join('')+`<div class="sync ${Sync.on?'on':''}"><i></i>${Sync.on?'Synced':'This device'}</div>`;
 }
+let loginStep='pw';
 function vLogin(){
-  return `<div class="login"><div class="brandmark">Nest &amp; Nibbles</div><p class="muted" style="margin-bottom:16px">Sign in with your household account to open your home.</p>
-  <form class="card" data-f="login"><label style="margin-top:0">Email</label><input id="lem" type="email" autocomplete="username" value="${esc(L.email)}" required>
-  <label>Password</label><input id="spw" type="password" autocomplete="current-password" required>
-  <div class="row" style="margin-top:16px"><button class="btn" style="flex:1">Sign in</button></div><p class="muted" id="syncmsg" style="margin-top:10px">${esc(Sync.msg)}</p></form></div>`;
+  const code=loginStep==='code';
+  return `<div class="login"><div class="brandmark">Nest &amp; Nibbles</div><p class="muted" style="margin-bottom:16px">${code?'Enter the 6-digit code from your authenticator app.':'Sign in with your household account to open your home.'}</p>
+  <form class="card" data-f="login">${code?`<label style="margin-top:0">Authenticator code</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" required style="font-size:22px;letter-spacing:.3em;text-align:center">`
+    :`<label style="margin-top:0">Email</label><input id="lem" type="email" autocomplete="username" value="${esc(L.email)}" required><label>Password</label><input id="spw" type="password" autocomplete="current-password" required>`}
+  <div class="row" style="margin-top:16px">${code?'<button type="button" class="btn ghost" data-a="lBack">Back</button>':''}<button class="btn" style="flex:1">${code?'Verify':'Sign in'}</button></div><p class="muted" id="syncmsg" style="margin-top:10px">${esc(Sync.msg)}</p></form></div>`;
 }
 function render(){
   if(locked()){$('#nav').style.display='none';$('#view').innerHTML=vLogin();return}
@@ -589,6 +650,7 @@ function render(){
   renderNav();$('#view').innerHTML=VIEWS[tab]();
   if(tab==='spin'){drawWheel();requestAnimationFrame(()=>{const w=$('#wheel');if(w)w.style.transition=''})}
   if(tab==='notes'){padSetup();voiceUI()}
+  if(tab==='settings'&&GATED)mfaStatus();
 }
 function modal(title,body,onSave,onDelete){
   const m=$('#modal');m.innerHTML=`<form><h2>${esc(title)}</h2>${body}<div class="row" style="margin-top:18px">${onDelete?'<button type="button" class="btn ghost" data-x="del">Delete</button>':''}<span style="flex:1"></span><button type="button" class="btn ghost" data-x="no">Cancel</button><button class="btn">Save</button></div></form>`;
@@ -652,15 +714,31 @@ const A={
   nRemindShare:(d,b)=>{const t=b.form.t.value.trim();if(!t){toast('Write the reminder first');return}share({text:'🔔 '+t})},
   who:d=>{L.who=d.k;saveL();render()},
   tTest:async()=>{if(await tgSafe('sendMessage',{chat_id:S.settings.chat,text:'🏡 Nest & Nibbles is connected!'},'Telegram is connected'))render()},
-  tFind:async()=>{if(!S.settings.token){toast('Paste the bot token first');return}
-    try{const ups=await tg('getUpdates',{}),seen={};for(const u of ups){const c=(u.message||u.my_chat_member||u.channel_post||{}).chat;if(c)seen[c.id]=c}
-      const cs=Object.values(seen);$('#chats').innerHTML=cs.length?cs.map(c=>`<div class="item"><div class="t">${esc(c.title||[c.first_name,c.last_name].filter(Boolean).join(' '))}<small>${esc(c.type)} · ${esc(c.id)}</small></div>${c.type==='private'?`<button class="btn sm soft" data-a="tUse" data-k="chatA" data-v="${esc(c.id)}">${esc(S.settings.a)}</button><button class="btn sm soft" data-a="tUse" data-k="chatB" data-v="${esc(c.id)}">${esc(S.settings.b)}</button>`:`<button class="btn sm" data-a="tUse" data-k="chat" data-v="${esc(c.id)}">Use as group</button>`}</div>`).join(''):'<p class="muted">No chats found yet. Send a message in the group (and to the bot), then try again.</p>'}
-    catch(e){toast('Telegram: '+e.message)}},
+  tFind:async()=>{const ti=$('#tgtoken');if(ti&&ti.value.trim()){S.settings.token=ti.value.trim();save()}
+    if(!S.settings.token){toast('Paste the bot token first');return}
+    const out=$('#chats');if(out)out.innerHTML='<p class="muted">Looking for chats…</p>';
+    try{let ups;try{ups=await tg('getUpdates',{})}catch(e){if(/webhook/i.test(e.message)){await tg('deleteWebhook',{});ups=await tg('getUpdates',{})}else throw e}
+      const seen={};for(const u of ups){const c=(u.message||u.my_chat_member||u.channel_post||{}).chat;if(c)seen[c.id]=c}
+      const cs=Object.values(seen);$('#chats').innerHTML=cs.length?cs.map(c=>`<div class="item"><div class="t">${esc(c.title||[c.first_name,c.last_name].filter(Boolean).join(' '))}<small>${esc(c.type)} · ${esc(c.id)}</small></div>${c.type==='private'?`<button class="btn sm soft" data-a="tUse" data-k="chatA" data-v="${esc(c.id)}">${esc(S.settings.a)}</button><button class="btn sm soft" data-a="tUse" data-k="chatB" data-v="${esc(c.id)}">${esc(S.settings.b)}</button>`:`<button class="btn sm" data-a="tUse" data-k="chat" data-v="${esc(c.id)}">Use as group</button>`}</div>`).join(''):'<p class="muted">The token works, but the bot has not seen any chat yet. Remove the bot from the group, add it again, send a message in the group, then tap Find our chats again.</p>'}
+    catch(e){const m=/Unauthorized|Not Found/i.test(e.message)?'Telegram does not recognise that token. Copy it again from @BotFather.':/Failed to fetch|Load failed|NetworkError/i.test(e.message)?'Could not reach Telegram from this device. Check the connection or any content blocker.':'Telegram said: '+e.message;const o=$('#chats');if(o)o.innerHTML='<p class="muted">'+esc(m)+'</p>';toast(m)}},
   tUse:(d,b)=>{S.settings[d.k]=d.v;save();b.textContent='Selected';toast('Saved')},
-  sSign:async()=>{const pw=$('#spw').value,em=$('#lem');if(em){L.email=em.value.trim();saveL()}
-    if(!/^https:\/\//.test(L.fb)||!L.key||!L.email||!pw){toast('Fill in the database URL, API key, email and password');return}
-    $('#syncmsg').textContent='Signing in…';
-    try{await Sync.signIn(pw);Sync.msg='';render();Sync.start(true)}catch(e){Sync.state(false,'Sign-in failed. Check the email and password.')}},
+  sSign:async()=>{
+    const say=m=>{const e=$('#syncmsg');if(e)e.textContent=m};
+    try{
+      if(loginStep==='code'){const c=$('#otp').value.replace(/\D/g,'');if(c.length<6){toast('Enter the 6-digit code');return}say('Checking…');await Sync.second(c)}
+      else{const pw=$('#spw').value,em=$('#lem');if(em){L.email=em.value.trim();saveL()}
+        if(!L.email||!pw){toast('Enter your email and password');return}say('Signing in…');await Sync.signIn(pw)}
+      loginStep='pw';Sync.msg='';render();Sync.start(true);
+    }catch(e){
+      if(e.mfa){loginStep='code';Sync.msg='';render();const o=$('#otp');if(o)o.focus();return}
+      Sync.state(false,loginStep==='code'?'That code was not accepted. Wait for the next one and try again.':'Sign-in failed. Check the email and password.')}},
+  lBack:()=>{loginStep='pw';Sync.msg='';render()},
+  mfaStart:async()=>{try{await Sync.refresh();mfa.session=(await idp('v2/accounts/mfaEnrollment:start',{idToken:Sync.tok,totpEnrollmentInfo:{}})).totpSessionInfo;mfaUI()}catch(e){mfaUI(mfaErr(e))}},
+  mfaFinish:async()=>{const c=$('#mfacode').value.replace(/\D/g,'');if(c.length<6){toast('Enter the 6-digit code');return}
+    try{const j=await idp('v2/accounts/mfaEnrollment:finalize',{idToken:Sync.tok,displayName:'Authenticator app',totpVerificationInfo:{sessionInfo:mfa.session.sessionInfo,verificationCode:c}});
+      if(j.idToken){Sync.tok=j.idToken;L.rt=j.refreshToken;saveL()}mfa.session=null;mfa.on=true;mfaUI('Two-step sign-in is now on.');Sync.start(!!j.idToken)}catch(e){mfaUI(mfaErr(e))}},
+  mfaCancel:()=>{mfa.session=null;mfaUI()},
+  mfaVerify:async()=>{try{await idp('v1/accounts:sendOobCode',{requestType:'VERIFY_EMAIL',idToken:Sync.tok});mfaUI('Verification email sent to '+L.email+'. Open the link in it, then come back here.')}catch(e){mfaUI(mfaErr(e))}},
   sOut:()=>signOut(),
   bExport:()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='nest-and-nibbles-backup-'+today()+'.json';a.click()},
   bImport:()=>$('#bfile').click(),
@@ -678,7 +756,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-f]');if(f){e.preventDefault();F[f.dataset.f](f)}});
 document.addEventListener('change',e=>{
   const k=e.target.dataset.s,l=e.target.dataset.l;
-  if(k){S.settings[k]=e.target.type==='checkbox'?e.target.checked:e.target.value.trim();save();stale=true}
+  if(k){S.settings[k]=e.target.type==='checkbox'?e.target.checked:e.target.value.trim();save();if(/^(a|b|scNotes|scMsg)$/.test(k))stale=true}
   if(l){L[l]=e.target.value.trim();saveL()}
   if(e.target.id==='bfile'&&e.target.files[0]){e.target.files[0].text().then(t=>{const d=JSON.parse(t);if(!d.settings||!d.groceries)throw 0;S={...DEFAULTS(),...d};fix();save();render();toast('Backup restored')}).catch(()=>toast('That file is not a Nest & Nibbles backup'))}
 });
