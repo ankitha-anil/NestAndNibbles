@@ -86,7 +86,7 @@ const locOpts=sel=>Object.entries(LOCS).map(([k,v])=>`<option value="${k}" ${sel
 function vInv(){
   const list=S.inv.filter(x=>invFilter==='all'||x.loc===invFilter);
   const groups=Object.keys(LOCS).map(k=>[k,list.filter(x=>x.loc===k).sort((a,b)=>(a.exp||'9').localeCompare(b.exp||'9')||a.t.localeCompare(b.t))]).filter(g=>g[1].length);
-  return `<div class="head"><h1>Fridge and pantry</h1><span class="muted end">${plural(S.inv.length,'item')}</span></div>
+  return `<div class="head"><h1>Fridge and pantry</h1><span class="muted">${plural(S.inv.length,'item')}</span><button class="btn end" data-a="iScan" ${aiBusy==='receipt'?'disabled':''}>${aiBusy==='receipt'?'Reading receipt…':'Scan a receipt'}</button><input type="file" id="rfile" accept="image/*" hidden></div>
   <form class="addbar" data-f="iAdd"><input name="t" placeholder="Add an item" autocomplete="off"><input class="w" name="qty" placeholder="Quantity" autocomplete="off"><select class="w" name="loc" aria-label="Where">${locOpts(invFilter)}</select><button class="btn">Add</button></form>
   <div class="seg" style="margin-bottom:16px">${[['all','All'],...Object.entries(LOCS)].map(([k,l])=>`<button class="${invFilter===k?'on':''}" data-a="iFilter" data-k="${k}">${l}</button>`).join('')}</div>
   ${groups.length?`<div class="grid">${groups.map(([k,items])=>`<div class="card"><h2>${LOCS[k]}</h2>${items.map(x=>`<div class="item"><div class="t" data-a="iEdit" data-id="${x.id}">${esc(x.t)}${x.qty?`<small>${esc(x.qty)}</small>`:''}</div>${expBadge(x)}<button class="btn sm clay" data-a="iOut" data-id="${x.id}">Ran out</button><button class="ico" data-a="iEdit" data-id="${x.id}" aria-label="Edit ${esc(x.t)}">✎</button></div>`).join('')}</div>`).join('')}</div>`:`<div class="card empty">Nothing here yet.</div>`}
@@ -126,17 +126,18 @@ const cuisines=()=>[...new Set(S.recipes.map(r=>r.cuisine).filter(Boolean))].sor
 function vRecipes(){
   const cs=cuisines();if(recCuisine!=='all'&&!cs.includes(recCuisine))recCuisine='all';
   const list=ranked().filter(({r})=>(recCuisine==='all'||r.cuisine===recCuisine)&&(!recQuick||(+r.time>0&&+r.time<=30)));
-  return `<div class="head"><h1>What can we cook?</h1><div class="row end"><button class="btn clay" data-a="cSurprise">Surprise me</button><button class="btn soft" data-a="cPaste">Paste recipes</button><button class="btn" data-a="cNew">Add recipe</button></div></div>
+  return `<div class="head"><h1>What can we cook?</h1><div class="row end"><button class="btn clay" data-a="cSurprise">Surprise me</button><button class="btn soft" data-a="cLink" ${aiBusy==='recipe'?'disabled':''}>${aiBusy==='recipe'?'Fetching recipe…':'From a link'}</button><button class="btn soft" data-a="cPaste">Paste recipes</button><button class="btn" data-a="cNew">Add recipe</button></div></div>
   <div class="row" style="margin-bottom:16px">${cs.length?`<div class="seg">${['all',...cs].map(c=>`<button class="${recCuisine===c?'on':''}" data-a="cCuisine" data-k="${esc(c)}">${c==='all'?'All cuisines':esc(c)}</button>`).join('')}</div>`:''}<div class="seg"><button class="${recQuick?'on':''}" data-a="cQuick">30 min or less</button></div></div>
   ${list.length?`<div class="grid">${list.map(({r,s})=>{const toAdd=s.missing.filter(p=>!p.listed);return `<div class="card rc ${picked===r.id?'pick':''}" id="rc-${r.id}"><h2><span class="ricon" aria-hidden="true">${esc(r.icon)}</span><span>${esc(r.t)}</span><button class="ico" data-a="cEdit" data-id="${r.id}" aria-label="Edit ${esc(r.t)}">✎</button></h2>
     <div class="row" style="margin:10px 0 8px">${r.time?`<span class="chip">${esc(r.time)} min</span>`:''}${r.cuisine?`<span class="chip listed">${esc(r.cuisine)}</span>`:''}</div>
     <div class="muted">${s.missing.length?`You have ${s.have} of ${s.total}`:'Ready to cook'}</div><div class="bar"><div style="width:${s.total?s.have/s.total*100:100}%"></div></div>
     <div class="chips">${s.parts.map(p=>`<span class="chip ${p.have?'have':p.listed?'listed':'miss'}">${esc(p.n)}</span>`).join('')}</div>
-    ${s.missing.length?`<button class="btn sm" data-a="cAddMissing" data-id="${r.id}" ${toAdd.length?'':'disabled'}>${toAdd.length?`Add ${toAdd.length} missing to list`:'Missing items are on the list'}</button>`:''}</div>`}).join('')}</div>`:`<div class="card empty">${S.recipes.length?'No recipes match that filter.':'Add your recipes to see what you can cook from what is in stock.'}</div>`}
+    ${s.missing.length?`<button class="btn sm" data-a="cAddMissing" data-id="${r.id}" ${toAdd.length?'':'disabled'}>${toAdd.length?`Add ${toAdd.length} missing to list`:'Missing items are on the list'}</button>`:''}${r.url?` <a class="btn sm ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Open recipe</a>`:''}</div>`}).join('')}</div>`:`<div class="card empty">${S.recipes.length?'No recipes match that filter.':'Add your recipes to see what you can cook from what is in stock.'}</div>`}
   <p class="muted" style="margin-top:14px">Green is in your kitchen, orange is missing, purple is already on the grocery list.</p>`;
 }
 function recipeForm(r){return `<label>Recipe name</label><input name="t" value="${esc(r.t)}" required>
   <div class="row" style="align-items:flex-end"><div style="flex:0 0 92px"><label>Icon</label><select name="icon">${RICONS.map(i=>`<option ${r.icon===i?'selected':''}>${i}</option>`).join('')}</select></div><div style="flex:1;min-width:96px"><label>Time (minutes)</label><input type="number" name="time" min="1" inputmode="numeric" value="${esc(r.time||'')}" placeholder="30"></div><div style="flex:2;min-width:130px"><label>Cuisine</label><input name="cuisine" value="${esc(r.cuisine||'')}" placeholder="e.g. Indian" list="cuisines"><datalist id="cuisines">${[...new Set([...cuisines(),'Indian','Italian','Chinese','Thai','Japanese','Mexican','Western'])].map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div></div>
+  <label>Link to the recipe (optional)</label><input name="url" type="url" value="${esc(r.url||'')}" placeholder="https://…" autocapitalize="off">
   <label>Ingredients, one per line</label><textarea name="ing" rows="8" placeholder="2 eggs&#10;200g pasta&#10;garlic">${esc(r.ing.join('\n'))}</textarea>`}
 function parseRecipes(text){
   return text.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean).map(b=>{
@@ -144,6 +145,42 @@ function parseRecipes(text){
     if(!ing.length&&t.includes(':')){const i=t.indexOf(':');ing=t.slice(i+1).split(',').map(s=>s.trim()).filter(Boolean);t=t.slice(0,i)}
     return{id:uid(),t:t.replace(/:$/,'').trim(),ing};
   }).filter(r=>r.t);
+}
+
+/* ---------- AI helpers: receipt to kitchen, link to recipe ---------- */
+let aiBusy='';
+const RECEIPT_SCHEMA={type:'object',additionalProperties:false,required:['date','items'],properties:{date:{type:'string',description:'Purchase date on the receipt as YYYY-MM-DD, or empty'},
+  items:{type:'array',items:{type:'object',additionalProperties:false,required:['name','qty','loc','days'],properties:{name:{type:'string'},qty:{type:'string'},loc:{type:'string',enum:['fridge','freezer','pantry']},days:{type:'integer'}}}}}};
+const RECIPE_SCHEMA={type:'object',additionalProperties:false,required:['name','icon','time','cuisine','ingredients'],properties:{name:{type:'string'},icon:{type:'string'},time:{type:'integer'},cuisine:{type:'string'},ingredients:{type:'array',items:{type:'string'}}}};
+function shrink(file,max=1600){return new Promise((res,rej)=>{const img=new Image();
+  img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);res(c.toDataURL('image/jpeg',.82))};
+  img.onerror=()=>rej(new Error('that photo could not be opened'));img.src=URL.createObjectURL(file)})}
+async function scanReceipt(file){
+  aiBusy='receipt';render();
+  try{
+    const out=await ai([{type:'input_text',text:'This is a photo of a shopping receipt. List every food, drink and household consumable bought. Use short everyday names (for example "Milk", not the printed product code). qty is the amount as printed, such as "2" or "1 kg", or empty. loc is where it is normally kept at home. days is how many days it typically stays good from the purchase date when stored that way; use 0 for long-life items (over six months) and non-food. Skip bags, discounts, totals, payment lines and anything that is not a product. Today is '+today()+'.'},{type:'input_image',image_url:await shrink(file)}],{name:'receipt',schema:RECEIPT_SCHEMA});
+    aiBusy='';render();
+    const items=(out.items||[]).filter(i=>i&&i.name);if(!items.length){toast('No grocery items were found on that photo');return}
+    const base=/^\d{4}-\d\d-\d\d$/.test(out.date||'')&&Math.abs(dayDiff(out.date,today()))<60?out.date:today();
+    modal('Items from your receipt',`<p class="muted">Untick anything you do not want. Use-by dates are estimates, so adjust them if the pack says otherwise.</p>`+items.map((it,i)=>`<div class="item" style="flex-wrap:wrap"><input type="checkbox" name="on${i}" checked style="width:22px;min-height:22px;height:22px;accent-color:var(--plum);flex:none" aria-label="Add ${esc(it.name)}"><input name="n${i}" value="${esc(it.name)}" style="flex:2 1 130px" aria-label="Name"><input name="q${i}" value="${esc(it.qty||'')}" placeholder="Qty" style="flex:1 1 60px" aria-label="Quantity"><select name="l${i}" style="flex:1 1 100px" aria-label="Where">${locOpts(LOCS[it.loc]?it.loc:'pantry')}</select><input type="date" name="e${i}" value="${it.days>0?addDays(base,it.days):''}" style="flex:1 1 140px" aria-label="Use by"></div>`).join(''),
+    v=>{let n=0,off=0;items.forEach((it,i)=>{const t=(v['n'+i]||'').trim();if(!v['on'+i]||!t)return;
+        const row={t:t[0].toUpperCase()+t.slice(1),qty:(v['q'+i]||'').trim(),loc:v['l'+i],exp:v['e'+i]||''},ex=S.inv.find(x=>norm(x.t)===norm(t));
+        if(ex)Object.assign(ex,row);else S.inv.push({id:uid(),...row});n++;
+        const before=S.groceries.length;S.groceries=S.groceries.filter(g=>norm(g.t)!==norm(t));off+=before-S.groceries.length});
+      toast(`${plural(n,'item')} added to the kitchen${off?`, ${off} taken off the grocery list`:''}`);if(off)setTimeout(groceryChanged,50)},null,'Add to kitchen');
+  }catch(e){aiBusy='';render();toast(aiErr(e))}
+}
+async function fetchRecipe(url,txt){
+  if(!url&&!txt){toast('Paste a link or the recipe text');return}
+  aiBusy='recipe';render();
+  const ask='Give the recipe as JSON with: name; icon (the single emoji from this list that fits best: '+RICONS.join(' ')+'); time (total minutes as a whole number, 0 if unknown); cuisine (one or two words, such as Indian); ingredients (short everyday names only, without quantities, one per entry).';
+  const content=[{type:'input_text',text:txt?ask+'\n\nRecipe text:\n'+txt:'Open this recipe page and read it: '+url+'\n'+ask+' Reply with the JSON only.'}];
+  try{let out;
+    try{out=await ai(content,{name:'recipe',schema:RECIPE_SCHEMA,web:!txt})}catch(e){if(txt||!/format|schema|tool|json/i.test(e.message))throw e;out=await ai(content,{web:true})}
+    const ing=(out.ingredients||[]).map(s=>String(s).trim()).filter(Boolean);if(!out.name||!ing.length)throw new Error('the page could not be read as a recipe. Paste the recipe text instead.');
+    const r={id:uid(),t:out.name,ing,icon:RICONS.includes(out.icon)?out.icon:'🍽️',time:out.time>0?String(out.time):'',cuisine:out.cuisine||'',url:/^https?:\/\//.test(url)?url:''};
+    S.recipes.push(r);aiBusy='';save();tab='recipes';recCuisine='all';recQuick=false;render();toast('Recipe added. Check it over.');A.cEdit({id:r.id});
+  }catch(e){aiBusy='';render();toast(aiErr(e))}
 }
 
 /* ---------- spinner ---------- */
@@ -287,6 +324,8 @@ function vSettings(){
   ${GATED?`<div class="card"><h2>Two-step sign-in</h2><p class="muted">Adds a 6-digit code from an authenticator app on top of the password, every time someone signs in.</p><div id="mfabox" style="margin-top:12px"></div></div>`:''}
   <div class="card"><h2>Telegram</h2><p class="muted" style="margin-bottom:12px">Re-pick the group, or send each kind of message to its own topic or a different group.</p>${tgPanel()}
     <details><summary>How to add a topic or another group</summary><ol><li>Make sure the bot is a member of the group (Group Privacy turned off in @BotFather).</li><li>Send one message inside each topic you want to use, and in any other group.</li><li>Tap <b>Find chats and topics</b>. Each topic then appears in the lists above as Group › Topic.</li><li>Pick where each kind of message goes, then tap <b>Send a test</b>.</li></ol></details></div>
+  <div class="card"><h2>AI helper</h2><p class="muted">Used to read receipts into the kitchen and to add recipes from a link. Each use is billed to your OpenAI account. The key is kept in your private database, not in the app's code.</p>
+    ${f('aiKey','OpenAI API key','sk-…','password')}${f('aiModel','Model','gpt-5.4-mini')}</div>
   <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}${f('scAlarm','Shortcut that sets an alarm for a routine')}
     <details><summary>How to make the shortcuts</summary><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scAlarm)}</b>: new shortcut with four actions. 1) Split Text: split Shortcut Input by New Lines. 2) Get Item from List: First Item. 3) Get Item from List: Last Item, from the Split Text result. 4) Create Alarm: set the time to the first item and the label to the last item. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
   </div><div>
@@ -334,8 +373,8 @@ function render(){
   if(tab==='notes'){padSetup();voiceUI()}
   if(tab==='settings'&&GATED)mfaStatus();
 }
-function modal(title,body,onSave,onDelete){
-  const m=$('#modal');m.innerHTML=`<form><h2>${esc(title)}</h2>${body}<div class="row" style="margin-top:18px">${onDelete?'<button type="button" class="btn ghost" data-x="del">Delete</button>':''}<span style="flex:1"></span><button type="button" class="btn ghost" data-x="no">Cancel</button><button class="btn">Save</button></div></form>`;
+function modal(title,body,onSave,onDelete,label){
+  const m=$('#modal');m.innerHTML=`<form><h2>${esc(title)}</h2>${body}<div class="row" style="margin-top:18px">${onDelete?'<button type="button" class="btn ghost" data-x="del">Delete</button>':''}<span style="flex:1"></span><button type="button" class="btn ghost" data-x="no">Cancel</button><button class="btn">${label||'Save'}</button></div></form>`;
   m.classList.add('on');const close=()=>{m.classList.remove('on');m.innerHTML=''};
   m.onclick=e=>{if(e.target===m||e.target.dataset.x==='no'){close();if(stale)softRender()}else if(e.target.dataset.x==='del'){close();onDelete();save();render()}};
   $('form',m).onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));close();onSave(d);save();render()};
@@ -356,6 +395,7 @@ const A={
     S.groceries=S.groceries.filter(g=>!g.done);groceryChanged();render();toast(`${plural(got.length,'item')} put away`)},
   gSend:()=>sendGroceries(true),
   gShare:()=>share({text:groceryText()}),
+  iScan:()=>{if(!S.settings.aiKey){toast('Add your OpenAI key in Settings first');return}$('#rfile').click()},
   iFilter:d=>{invFilter=d.k;render()},
   iOut:d=>{const x=byId(S.inv,d.id);if(!x)return;S.inv=S.inv.filter(i=>i.id!==d.id);addGroceries([x.t],true);save();render();toast(`${x.t} added to the grocery list`)},
   iEdit:d=>{const x=byId(S.inv,d.id);if(x)modal('Edit item',invForm(x),v=>Object.assign(x,v),()=>{S.inv=S.inv.filter(i=>i!==x)})},
@@ -363,10 +403,11 @@ const A={
   rEdit:d=>{const r=byId(S.routines,d.id);if(r)modal('Edit routine',routineForm(r),v=>Object.assign(r,v,{every:Math.max(1,+v.every||1)}),()=>{S.routines=S.routines.filter(i=>i!==r)})},
   rDone:d=>{const r=byId(S.routines,d.id);if(!r)return;r.last=today();save();render();toast(`${r.t} done. Next in ${plural(+r.every,'day')}.`)},
   rNudge:d=>{const r=byId(S.routines,d.id),n=dueIn(r);tgSafe('sendMessage',{...target('routines'),text:`🔔 ${r.t}: ${n<0?plural(-n,'day')+' overdue':n===0?'due today':'due in '+plural(n,'day')} (nudge from ${me()})`},'Nudge sent')},
-  cNew:()=>modal('New recipe',recipeForm({t:'',ing:[]}),v=>S.recipes.push({id:uid(),t:v.t,ing:lines(v.ing),icon:v.icon,time:v.time,cuisine:v.cuisine.trim()})),
+  cNew:()=>modal('New recipe',recipeForm({t:'',ing:[]}),v=>S.recipes.push({id:uid(),t:v.t,ing:lines(v.ing),icon:v.icon,time:v.time,cuisine:v.cuisine.trim(),url:/^https?:\/\//.test(v.url.trim())?v.url.trim():''})),
+  cLink:()=>{if(!S.settings.aiKey){toast('Add your OpenAI key in Settings first');return}modal('Add a recipe from a link',`<label>Recipe link</label><input name="url" type="url" placeholder="https://…" autocapitalize="off"><label>Or paste the recipe text</label><textarea name="txt" rows="5" placeholder="Use this if the page cannot be opened"></textarea>`,v=>{setTimeout(()=>fetchRecipe(v.url.trim(),v.txt.trim()),0)},null,'Fetch recipe')},
   cCuisine:d=>{recCuisine=d.k;render()},
   cQuick:()=>{recQuick=!recQuick;render()},
-  cEdit:d=>{const r=byId(S.recipes,d.id);if(r)modal('Edit recipe',recipeForm(r),v=>{r.t=v.t;r.ing=lines(v.ing);r.icon=v.icon;r.time=v.time;r.cuisine=v.cuisine.trim()},()=>{S.recipes=S.recipes.filter(i=>i!==r)})},
+  cEdit:d=>{const r=byId(S.recipes,d.id);if(r)modal('Edit recipe',recipeForm(r),v=>{r.t=v.t;r.ing=lines(v.ing);r.icon=v.icon;r.time=v.time;r.cuisine=v.cuisine.trim();r.url=/^https?:\/\//.test(v.url.trim())?v.url.trim():''},()=>{S.recipes=S.recipes.filter(i=>i!==r)})},
   cPaste:()=>modal('Paste recipes',`<p class="muted">Recipe name on the first line, ingredients underneath, a blank line between recipes. Or one per line: <code>Name: a, b, c</code></p><textarea name="txt" rows="10" style="margin-top:10px" placeholder="Dal tadka&#10;lentils&#10;onion&#10;tomatoes&#10;&#10;Pancakes: flour, eggs, milk"></textarea>`,v=>{const rs=parseRecipes(v.txt);S.recipes.push(...rs);toast(`Added ${plural(rs.length,'recipe')}`)}),
   cAddMissing:d=>{const r=byId(S.recipes,d.id);if(r){addGroceries(recipeStatus(r).missing.filter(p=>!p.listed).map(p=>p.n));render()}},
   cSurprise:()=>{if(!S.recipes.length){toast('Add a recipe first');return}const st=ranked(),ready=st.filter(x=>!x.s.missing.length),pool=ready.length?ready:st.slice().sort((a,b)=>a.s.missing.length-b.s.missing.length).slice(0,3),p=pool[Math.floor(Math.random()*pool.length)];
@@ -465,6 +506,7 @@ document.addEventListener('change',e=>{
   if(k){S.settings[k]=e.target.type==='checkbox'?e.target.checked:e.target.value.trim();save();if(/^(a|b|scNotes|scMsg)$/.test(k))stale=true}
   if(l){L[l]=e.target.value.trim();saveL()}
   const rt=e.target.dataset.r;if(rt){S.settings.route={...S.settings.route,[rt]:e.target.value};save()}
+  if(e.target.id==='rfile'&&e.target.files[0]){scanReceipt(e.target.files[0]);e.target.value=''}
   if(e.target.id==='bfile'&&e.target.files[0]){e.target.files[0].text().then(t=>{const d=JSON.parse(t);if(!d.settings||!d.groceries)throw 0;S={...DEFAULTS(),...d};fix();save();render();toast('Backup restored')}).catch(()=>toast('That file is not a Nest & Nibbles backup'))}
 });
 addEventListener('resize',()=>{if(tab==='spin')drawWheel();if(tab==='notes')padSetup()});

@@ -29,7 +29,7 @@ const DEFAULTS=()=>({
     {id:uid(),t:'Tomato soup and grilled cheese',icon:'🍲',time:'30',cuisine:'Western',ing:['tomatoes','onion','garlic','bread','cheese','butter']},
     {id:uid(),t:'Veggie omelette',icon:'🍳',time:'10',cuisine:'Western',ing:['eggs','onion','bell pepper','cheese','butter']}],
   eatout:['Pizza','Sushi','Thai','Burgers','Our usual café','Tacos'],
-  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{}},
+  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{},aiKey:'',aiModel:'gpt-5.4-mini'},
   lastDigest:'',lastSent:''
 });
 const DS=DEFAULTS().settings,LISTS=['groceries','inv','routines','recipes','eatout'];
@@ -43,7 +43,7 @@ if(GATED){L.fb=CONFIG.databaseURL;L.key=CONFIG.apiKey}
 const locked=()=>GATED&&!L.rt;
 function fix(){
   for(const k of LISTS){const v=S[k];S[k]=Array.isArray(v)?v.filter(x=>x!=null):v&&typeof v==='object'?Object.values(v):[]}
-  S.recipes.forEach(r=>{r.ing=Array.isArray(r.ing)?r.ing:r.ing?Object.values(r.ing):[];r.icon=r.icon||'🍽️';r.time=r.time||'';r.cuisine=r.cuisine||''});
+  S.recipes.forEach(r=>{r.ing=Array.isArray(r.ing)?r.ing:r.ing?Object.values(r.ing):[];r.icon=r.icon||'🍽️';r.time=r.time||'';r.cuisine=r.cuisine||'';r.url=r.url||''});
   S.inv.forEach(x=>{x.qty=x.qty||'';x.exp=x.exp||'';x.loc=x.loc||'pantry'});
   S.settings={...DS,...S.settings};const st=S.settings;st.dests=Array.isArray(st.dests)?st.dests.filter(Boolean):st.dests&&typeof st.dests==='object'?Object.values(st.dests):[];st.route=st.route&&typeof st.route==='object'?st.route:{};S.lastDigest=S.lastDigest||'';S.lastSent=S.lastSent||'';
 }
@@ -145,4 +145,19 @@ async function share(data){
     if(!navigator.share)throw 0;await navigator.share(data)}
   catch(e){if(e&&e.name==='AbortError')return;toast('Sharing is not available in this browser')}
 }
+
+/* ---------- OpenAI: reads receipts and recipe pages, answers as JSON ---------- */
+async function ai(content,opts={}){
+  const key=(S.settings.aiKey||'').trim();if(!key)throw new Error('nokey');
+  const body={model:(S.settings.aiModel||'gpt-5.4-mini').trim(),input:[{role:'user',content}]};
+  if(opts.schema)body.text={format:{type:'json_schema',name:opts.name,strict:true,schema:opts.schema}};
+  if(opts.web)body.tools=[{type:'web_search'}];
+  const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(body)});
+  const t=await r.text();let j;try{j=JSON.parse(t)}catch(e){throw new Error('unexpected reply from OpenAI (status '+r.status+')')}
+  if(j.error)throw new Error(j.error.message||'OpenAI error');
+  const txt=(j.output||[]).flatMap(o=>o.content||[]).filter(c=>c.type==='output_text').map(c=>c.text).join('');
+  const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('OpenAI sent back no answer');
+  return JSON.parse(m[0]);
+}
+const aiErr=e=>e.message==='nokey'?'Add your OpenAI key in Settings first':/api key|Incorrect|401/i.test(e.message)?'OpenAI did not accept that key. Check it in Settings.':/model/i.test(e.message)&&/not|exist|access/i.test(e.message)?'OpenAI does not recognise that model name. Check it in Settings.':/quota|billing|insufficient/i.test(e.message)?'Your OpenAI account has no credit left.':/Failed to fetch|Load failed|NetworkError/i.test(e.message)?'Could not reach OpenAI from this device.':'OpenAI: '+e.message;
 
