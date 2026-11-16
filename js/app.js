@@ -236,6 +236,8 @@ function tgPanel(){
   const who=(k,n)=>`<div style="flex:1;min-width:130px"><label>${esc(n)}'s private chat</label><select data-s="${k}">${opt('','None',s[k])}${people.map(d=>opt(d.id.split('|')[0],d.label,s[k])).join('')}${s[k]&&!people.some(d=>d.id.split('|')[0]===String(s[k]))?opt(s[k],'Chat '+s[k],s[k]):''}</select></div>`;
   return `<label style="margin-top:0">Bot token</label><input id="tgtoken" data-s="token" value="${esc(s.token)}" placeholder="123456789:AAF…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
   <div class="row" style="margin-top:12px"><button class="btn soft" data-a="tFind">Find chats and topics</button><button class="btn" data-a="tTest">Send a test</button></div><p class="muted" id="chats" style="margin-top:8px"></p>
+  <details style="margin-top:0"><summary>Add a topic by its message link</summary><p class="muted">In Telegram, press and hold any message inside the topic, choose Copy Link, and paste it here.</p>
+    <div class="row" style="margin-top:8px"><input id="tlink" placeholder="https://t.me/c/…" autocomplete="off" autocapitalize="off" style="flex:2 1 180px"><input id="tname" placeholder="Name, e.g. Groceries" autocomplete="off" style="flex:1 1 130px"><button class="btn soft" data-a="tAdd">Add</button></div></details>
   <label>Main group</label><select data-s="chat">${opt('',mains.length?'Choose a group':'No groups found yet',s.chat)}${mains.map(d=>opt(d.id.split('|')[0],d.label,s.chat)).join('')}${s.chat&&!mains.some(d=>d.id.split('|')[0]===String(s.chat))?opt(s.chat,'Chat '+s.chat,s.chat):''}</select>
   <label>Where each kind of message goes</label>
   ${KINDS.map(([k,l])=>`<div class="row" style="margin-bottom:8px"><span style="flex:1 1 150px;font-weight:600">${l}</span><select data-r="${k}" style="flex:2 1 180px">${opt('','Main group',s.route[k])}${groups.map(d=>opt(d.id,d.label,s.route[k])).join('')}</select></div>`).join('')}
@@ -389,6 +391,13 @@ const A={
   tTest:async()=>{if(!S.settings.chat){toast('Choose the main group first');return}
     let ok=await tgSafe('sendMessage',{chat_id:S.settings.chat,text:'🏡 Nest & Nibbles is connected!'},'Test sent');
     for(const [k,l] of KINDS){const t=target(k);if(ok&&t.message_thread_id)ok=await tgSafe('sendMessage',{...t,text:'🏡 '+l+' will be posted here.'},'Tests sent')}},
+  tAdd:()=>{const v=$('#tlink').value||'',m=v.match(/t\.me\/(c\/)?([\w-]+)\/(\d+)(?:\/(\d+))?/),q=v.match(/[?&]thread=(\d+)/);
+    if(!m){toast('That does not look like a Telegram message link');return}
+    const chat=m[1]?'-100'+m[2]:'@'+m[2];let th=q?q[1]:m[4]?m[3]:'';if(th==='1')th='';
+    const name=$('#tname').value.trim(),base=S.settings.dests.find(d=>d.id===chat+'|'),gl=base?base.label:'Group',id=chat+'|'+th;
+    if(!base)S.settings.dests.push({id:chat+'|',label:gl,priv:false});
+    if(th)S.settings.dests=S.settings.dests.filter(d=>d.id!==id).concat({id,label:gl+' › '+(name||'Topic '+th),priv:false,named:true});
+    if(!S.settings.chat)S.settings.chat=chat;save();render();toast(th?'Topic added. Pick it in the lists above.':'Group added')},
   rAlarm:d=>{const r=byId(S.routines,d.id);if(!r)return;modal('Set an alarm for today',`<p class="muted">Creates an alarm on this device through your ${esc(S.settings.scAlarm)} shortcut.</p><label>Time</label><input type="time" name="time" value="${esc(r.alarm||'18:00')}" required>`,v=>{r.alarm=v.time;setTimeout(()=>runShortcut(S.settings.scAlarm,v.time+'\n'+r.t),80)})},
   tFind:async()=>{const ti=$('#tgtoken');if(ti&&ti.value.trim()){S.settings.token=cleanToken(ti.value)||ti.value.trim();ti.value=S.settings.token;save()}
     if(!S.settings.token){toast('Paste the bot token first');return}
@@ -406,7 +415,7 @@ const A={
       const mains=S.settings.dests.filter(d=>!d.priv&&!d.id.split('|')[1]),topics=S.settings.dests.filter(d=>!d.priv&&d.id.split('|')[1]);
       if(!S.settings.chat&&mains.length===1)S.settings.chat=mains[0].id.split('|')[0];
       const wasHome=tab==='home';save();render();
-      const msg=Object.keys(found).length?`Found ${plural(mains.length,'group')} and ${plural(topics.length,'topic')}.${topics.length?'':' To see a topic, send a message inside it and search again.'}`:'The token works, but the bot has not seen any chat yet. Remove the bot from the group, add it again, send a message in the group, then search again.';
+      const msg=Object.keys(found).length?`Found ${plural(mains.length,'group')} and ${plural(topics.length,'topic')}.${topics.length?'':' No topics seen yet. Make the bot an admin of the group, send a new message inside each topic and search again, or add a topic by its message link below.'}`:`The token works, but Telegram has passed the bot ${ups.length?'no group messages':'nothing at all'} so far. Make the bot an admin of the group, send a new message there and search again, or add the topic by its message link below.`;
       say(msg);if(wasHome&&tgReady())toast('Telegram connected. Choose topics in Settings.');
     }catch(e){const m=/does not look like/.test(e.message)?'T'+e.message.slice(1)+'.':/Unauthorized|Not Found/i.test(e.message)?'Telegram does not recognise that token. Copy it again from @BotFather.':/Failed to fetch|Load failed|NetworkError/i.test(e.message)?'Could not reach Telegram from this device. Check the connection or any content blocker.':'Telegram said: '+e.message;say(m);toast(m)}},
   sSign:async()=>{
@@ -462,7 +471,3 @@ local();render();
 Sync.start().then(()=>setTimeout(digest,Sync.ready()?4000:0));
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(tab==='spin')drawWheel()});
 
-/* home-screen icon */
-try{const c=document.createElement('canvas');c.width=c.height=180;const x=c.getContext('2d');
-  x.fillStyle='#8c6293';x.fillRect(0,0,180,180);x.fillStyle='#f5f5f5';x.beginPath();x.moveTo(90,38);x.lineTo(146,84);x.lineTo(146,142);x.lineTo(34,142);x.lineTo(34,84);x.closePath();x.fill();
-  x.fillStyle='#d3782b';x.beginPath();x.arc(90,108,18,0,7);x.fill();$('#touchicon').href=c.toDataURL('image/png')}catch(e){}
