@@ -318,7 +318,7 @@ function vSettings(){
   const lf=(k,l,ph='',type='text')=>`<label>${l}</label><input data-l="${k}" type="${type}" value="${esc(L[k])}" placeholder="${ph}" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">`;
   const sw=(k,l)=>`<label class="check"><input type="checkbox" data-s="${k}" ${s[k]?'checked':''}>${l}</label>`;
   return `<div class="head"><h1>Settings</h1></div>
-  <div class="grid two"><div>
+  <div class="tiles-flow">
   <div class="card"><h2>Our nest</h2><div class="row" style="align-items:flex-end"><div style="flex:1;min-width:130px">${f('a','First name')}</div><div style="flex:1;min-width:130px">${f('b','Second name')}</div></div>
     <label>This device belongs to</label><div class="seg" style="box-shadow:none;background:var(--paper)">${['a','b'].map(k=>`<button class="${L.who===k?'on':''}" data-a="who" data-k="${k}">${esc(s[k])}</button>`).join('')}</div>
     ${GATED?`<div class="row" style="margin-top:16px"><span class="muted" style="flex:1">Signed in as ${esc(L.email)}</span><button class="btn sm ghost" data-a="sOut">Sign out</button></div>`:''}</div>
@@ -329,9 +329,14 @@ function vSettings(){
     ${f('aiKey','OpenAI API key','sk-…','password')}</div>
   <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}${f('scAlarm','Shortcut that sets an alarm for a routine')}
     <details><summary>How to make the shortcuts</summary><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scAlarm)}</b>: new shortcut with four actions. 1) Split Text: split Shortcut Input by New Lines. 2) Get Item from List: First Item. 3) Get Item from List: Last Item, from the Split Text result. 4) Create Alarm: set the time to the first item and the label to the last item. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
-  </div><div>
-  <div class="card"><h2>Backup</h2><p class="muted">Save a copy of everything now and then.</p><div class="row" style="margin-top:12px"><button class="btn soft" data-a="bExport">Download backup</button><button class="btn soft" data-a="bImport">Restore backup</button><button class="btn ghost" data-a="bReset">Reset app</button></div><input type="file" id="bfile" accept="application/json,.json" hidden></div>
-  </div></div>`;
+  <div class="card"><h2>Backup</h2>
+    <p class="muted">${L.lastBackup?`Last backup on this device: ${dayDiff(today(),L.lastBackup)<=0?'today':plural(dayDiff(today(),L.lastBackup),'day')+' ago'}.`:'No backup saved from this device yet.'} ${L.lastBackup&&dayDiff(today(),L.lastBackup)<=30?'':'<span class="due soon">Due</span>'}</p>
+    <div class="row" style="margin-top:12px"><button class="btn soft" data-a="bExport">Download backup</button><button class="btn soft" data-a="bImport">Restore backup</button></div>
+    <label>Take your data elsewhere</label>
+    <div class="row"><button class="btn sm ghost" data-a="bRecipes">Recipes (text)</button><button class="btn sm ghost" data-a="bKitchen">Kitchen (spreadsheet)</button></div>
+    <p class="muted" style="margin-top:10px">Backups leave out your Telegram token and OpenAI key, and restoring keeps the ones already set. Recipes export as name and ingredients, ready for Paste recipes. Kitchen opens in Numbers or Excel.</p>
+    <div class="row" style="margin-top:14px"><button class="btn ghost" data-a="bReset">Reset app</button></div><input type="file" id="bfile" accept="application/json,.json" hidden></div>
+  </div>`;
 }
 
 /* ---------- shell ---------- */
@@ -385,6 +390,7 @@ const lines=t=>t.split('\n').map(s=>s.trim()).filter(Boolean);
 
 /* ---------- actions ---------- */
 let resetArmed=0;
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 const A={
   go:d=>{tab=d.k;picked='';moreOpen=false;render();$('main').scrollTop=0},
   more:()=>{moreOpen=!moreOpen;renderNav()},
@@ -487,7 +493,10 @@ const A={
   mfaCancel:()=>{mfa.session=null;mfaUI()},
   mfaVerify:async()=>{try{await idp('v1/accounts:sendOobCode',{requestType:'VERIFY_EMAIL',idToken:Sync.tok});mfaUI('Verification email sent to '+L.email+'. Open the link in it, then come back here.')}catch(e){mfaUI(mfaErr(e))}},
   sOut:()=>signOut(),
-  bExport:()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='nest-and-nibbles-backup-'+today()+'.json';a.click()},
+  bExport:()=>{const {token,aiKey,...rest}=S.settings;dl('nest-and-nibbles-backup-'+today()+'.json',JSON.stringify({...S,settings:rest},null,1),'application/json');L.lastBackup=today();saveL();render();toast('Backup downloaded')},
+  bRecipes:()=>{if(!S.recipes.length){toast('No recipes to export');return}dl('nest-and-nibbles-recipes-'+today()+'.txt',S.recipes.map(r=>r.t+'\n'+r.ing.join('\n')).join('\n\n')+'\n','text/plain')},
+  bKitchen:()=>{if(!S.inv.length){toast('The kitchen is empty');return}const q=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+    dl('nest-and-nibbles-kitchen-'+today()+'.csv',['Item,Quantity,Where,Use by',...S.inv.map(x=>[q(x.t),q(x.qty),q(LOCS[x.loc]||x.loc),q(x.exp)].join(','))].join('\n')+'\n','text/csv')},
   bImport:()=>$('#bfile').click(),
   bReset:(d,b)=>{if(Date.now()-resetArmed>4000){resetArmed=Date.now();b.textContent='Tap again to erase everything';return}
     try{localStorage.removeItem(KEY)}catch(e){}S=DEFAULTS();fix();save();resetArmed=0;render();toast('App reset')}
@@ -508,7 +517,7 @@ document.addEventListener('change',e=>{
   if(l){L[l]=e.target.value.trim();saveL()}
   const rt=e.target.dataset.r;if(rt){S.settings.route={...S.settings.route,[rt]:e.target.value};save()}
   if(e.target.id==='rfile'&&e.target.files[0]){scanReceipt(e.target.files[0]);e.target.value=''}
-  if(e.target.id==='bfile'&&e.target.files[0]){e.target.files[0].text().then(t=>{const d=JSON.parse(t);if(!d.settings||!d.groceries)throw 0;S={...DEFAULTS(),...d};fix();save();render();toast('Backup restored')}).catch(()=>toast('That file is not a Nest & Nibbles backup'))}
+  if(e.target.id==='bfile'&&e.target.files[0]){e.target.files[0].text().then(t=>{const d=JSON.parse(t);if(!d.settings||!d.groceries)throw 0;const keep={token:S.settings.token,aiKey:S.settings.aiKey};S={...DEFAULTS(),...d};fix();S.settings.token=S.settings.token||keep.token;S.settings.aiKey=S.settings.aiKey||keep.aiKey;save();render();toast('Backup restored')}).catch(()=>toast('That file is not a Nest & Nibbles backup'))}
 });
 addEventListener('resize',()=>{if(tab==='spin')drawWheel();if(tab==='notes')padSetup()});
 

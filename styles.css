@@ -43,6 +43,8 @@ main{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;align-items:start}
 .grid .card{margin:0}
+.tiles-flow{columns:300px 3;column-gap:16px}
+.tiles-flow>.card{break-inside:avoid;margin:0 0 16px}
 .grid>div:not(.card){display:flex;flex-direction:column;gap:16px;min-width:0}
 .grid.two{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 .btn{min-height:44px;padding:0 17px;border-radius:12px;background:var(--plum);color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
