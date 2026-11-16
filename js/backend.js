@@ -29,7 +29,7 @@ const DEFAULTS=()=>({
     {id:uid(),t:'Tomato soup and grilled cheese',icon:'🍲',time:'30',cuisine:'Western',ing:['tomatoes','onion','garlic','bread','cheese','butter']},
     {id:uid(),t:'Veggie omelette',icon:'🍳',time:'10',cuisine:'Western',ing:['eggs','onion','bell pepper','cheese','butter']}],
   eatout:['Pizza','Sushi','Thai','Burgers','Our usual café','Tacos'],
-  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{},aiKey:'',aiModel:'gpt-5.4-mini'},
+  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{},aiKey:''},
   lastDigest:'',lastSent:''
 });
 const DS=DEFAULTS().settings,LISTS=['groceries','inv','routines','recipes','eatout'];
@@ -149,7 +149,7 @@ async function share(data){
 /* ---------- OpenAI: reads receipts and recipe pages, answers as JSON ---------- */
 async function ai(content,opts={}){
   const key=(S.settings.aiKey||'').trim();if(!key)throw new Error('nokey');
-  const body={model:(S.settings.aiModel||'gpt-5.4-mini').trim(),input:[{role:'user',content}]};
+  const body={model:'gpt-5.4-mini',input:[{role:'user',content}]};
   if(opts.schema)body.text={format:{type:'json_schema',name:opts.name,strict:true,schema:opts.schema}};
   if(opts.web)body.tools=[{type:'web_search'}];
   const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(body)});

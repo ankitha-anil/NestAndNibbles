@@ -122,6 +122,7 @@ function recipeStatus(r){
 const ranked=()=>S.recipes.map(r=>({r,s:recipeStatus(r)})).sort((a,b)=>b.s.have/(b.s.total||1)-a.s.have/(a.s.total||1)||a.s.missing.length-b.s.missing.length);
 let picked='',recCuisine='all',recQuick=false;
 const RICONS=['🍽️','🍝','🍚','🍛','🍜','🥘','🍲','🥗','🍳','🥪','🌮','🍕','🍣','🥞','🍰'];
+const CUISINES=['Indian','Chinese','Thai','Korean','Japanese','Vietnamese','Malay','Italian','Western','Mexican','Middle Eastern','Other'];
 const cuisines=()=>[...new Set(S.recipes.map(r=>r.cuisine).filter(Boolean))].sort();
 function vRecipes(){
   const cs=cuisines();if(recCuisine!=='all'&&!cs.includes(recCuisine))recCuisine='all';
@@ -136,7 +137,7 @@ function vRecipes(){
   <p class="muted" style="margin-top:14px">Green is in your kitchen, orange is missing, purple is already on the grocery list.</p>`;
 }
 function recipeForm(r){return `<label>Recipe name</label><input name="t" value="${esc(r.t)}" required>
-  <div class="row" style="align-items:flex-end"><div style="flex:0 0 92px"><label>Icon</label><select name="icon">${RICONS.map(i=>`<option ${r.icon===i?'selected':''}>${i}</option>`).join('')}</select></div><div style="flex:1;min-width:96px"><label>Time (minutes)</label><input type="number" name="time" min="1" inputmode="numeric" value="${esc(r.time||'')}" placeholder="30"></div><div style="flex:2;min-width:130px"><label>Cuisine</label><input name="cuisine" value="${esc(r.cuisine||'')}" placeholder="e.g. Indian" list="cuisines"><datalist id="cuisines">${[...new Set([...cuisines(),'Indian','Italian','Chinese','Thai','Japanese','Mexican','Western'])].map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div></div>
+  <div class="row" style="align-items:flex-end"><div style="flex:0 0 92px"><label>Icon</label><select name="icon">${RICONS.map(i=>`<option ${r.icon===i?'selected':''}>${i}</option>`).join('')}</select></div><div style="flex:1;min-width:96px"><label>Time (minutes)</label><input type="number" name="time" min="1" inputmode="numeric" value="${esc(r.time||'')}" placeholder="30"></div><div style="flex:2;min-width:130px"><label>Cuisine</label><select name="cuisine">${['',...CUISINES,...(r.cuisine&&!CUISINES.includes(r.cuisine)?[r.cuisine]:[])].map(c=>`<option value="${esc(c)}" ${r.cuisine===c?'selected':''}>${c||'Choose a cuisine'}</option>`).join('')}</select></div></div>
   <label>Link to the recipe (optional)</label><input name="url" type="url" value="${esc(r.url||'')}" placeholder="https://…" autocapitalize="off">
   <label>Ingredients, one per line</label><textarea name="ing" rows="8" placeholder="2 eggs&#10;200g pasta&#10;garlic">${esc(r.ing.join('\n'))}</textarea>`}
 function parseRecipes(text){
@@ -325,7 +326,7 @@ function vSettings(){
   <div class="card"><h2>Telegram</h2><p class="muted" style="margin-bottom:12px">Re-pick the group, or send each kind of message to its own topic or a different group.</p>${tgPanel()}
     <details><summary>How to add a topic or another group</summary><ol><li>Make sure the bot is a member of the group (Group Privacy turned off in @BotFather).</li><li>Send one message inside each topic you want to use, and in any other group.</li><li>Tap <b>Find chats and topics</b>. Each topic then appears in the lists above as Group › Topic.</li><li>Pick where each kind of message goes, then tap <b>Send a test</b>.</li></ol></details></div>
   <div class="card"><h2>AI helper</h2><p class="muted">Used to read receipts into the kitchen and to add recipes from a link. Each use is billed to your OpenAI account. The key is kept in your private database, not in the app's code.</p>
-    ${f('aiKey','OpenAI API key','sk-…','password')}${f('aiModel','Model','gpt-5.4-mini')}</div>
+    ${f('aiKey','OpenAI API key','sk-…','password')}</div>
   <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}${f('scAlarm','Shortcut that sets an alarm for a routine')}
     <details><summary>How to make the shortcuts</summary><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scAlarm)}</b>: new shortcut with four actions. 1) Split Text: split Shortcut Input by New Lines. 2) Get Item from List: First Item. 3) Get Item from List: Last Item, from the Split Text result. 4) Create Alarm: set the time to the first item and the label to the last item. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
   </div><div>
