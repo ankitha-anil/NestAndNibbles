@@ -24,10 +24,10 @@ const DEFAULTS=()=>({
     {id:uid(),t:'Clear out fridge',every:30,last:ago(12)},{id:uid(),t:'Washing machine clean cycle',every:30,last:ago(33)},
     {id:uid(),t:'Descale kettle',every:60,last:ago(20)},{id:uid(),t:'Water the plants',every:3,last:ago(1)}],
   recipes:[
-    {id:uid(),t:'Garlic butter pasta',ing:['pasta','garlic','butter','parmesan','parsley']},
-    {id:uid(),t:'Egg fried rice',ing:['rice','eggs','frozen peas','soy sauce','spring onions','garlic']},
-    {id:uid(),t:'Tomato soup and grilled cheese',ing:['tomatoes','onion','garlic','bread','cheese','butter']},
-    {id:uid(),t:'Veggie omelette',ing:['eggs','onion','bell pepper','cheese','butter']}],
+    {id:uid(),t:'Garlic butter pasta',icon:'🍝',time:'20',cuisine:'Italian',ing:['pasta','garlic','butter','parmesan','parsley']},
+    {id:uid(),t:'Egg fried rice',icon:'🍚',time:'15',cuisine:'Chinese',ing:['rice','eggs','frozen peas','soy sauce','spring onions','garlic']},
+    {id:uid(),t:'Tomato soup and grilled cheese',icon:'🍲',time:'30',cuisine:'Western',ing:['tomatoes','onion','garlic','bread','cheese','butter']},
+    {id:uid(),t:'Veggie omelette',icon:'🍳',time:'10',cuisine:'Western',ing:['eggs','onion','bell pepper','cheese','butter']}],
   eatout:['Pizza','Sushi','Thai','Burgers','Our usual café','Tacos'],
   settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{}},
   lastDigest:'',lastSent:''
@@ -43,7 +43,7 @@ if(GATED){L.fb=CONFIG.databaseURL;L.key=CONFIG.apiKey}
 const locked=()=>GATED&&!L.rt;
 function fix(){
   for(const k of LISTS){const v=S[k];S[k]=Array.isArray(v)?v.filter(x=>x!=null):v&&typeof v==='object'?Object.values(v):[]}
-  S.recipes.forEach(r=>{r.ing=Array.isArray(r.ing)?r.ing:r.ing?Object.values(r.ing):[]});
+  S.recipes.forEach(r=>{r.ing=Array.isArray(r.ing)?r.ing:r.ing?Object.values(r.ing):[];r.icon=r.icon||'🍽️';r.time=r.time||'';r.cuisine=r.cuisine||''});
   S.inv.forEach(x=>{x.qty=x.qty||'';x.exp=x.exp||'';x.loc=x.loc||'pantry'});
   S.settings={...DS,...S.settings};const st=S.settings;st.dests=Array.isArray(st.dests)?st.dests.filter(Boolean):st.dests&&typeof st.dests==='object'?Object.values(st.dests):[];st.route=st.route&&typeof st.route==='object'?st.route:{};S.lastDigest=S.lastDigest||'';S.lastSent=S.lastSent||'';
 }

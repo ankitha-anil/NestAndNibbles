@@ -70,11 +70,10 @@ function vGroceries(){
   <div class="board">${S.groceries.length?`<ul>${need.map(gLi).join('')}${got.map(gLi).join('')}</ul>`:`<div class="empty">Nothing to buy. Type or tap the microphone to add things.</div>`}</div>
   <div class="row">
     <button class="btn" data-a="gSend">Send to Telegram</button>
-    <button class="btn soft" data-a="gNotes">Save to Notes</button>
     <button class="btn soft" data-a="gShare">Share</button>
     <span style="flex:1"></span>
     <button class="btn leaf" data-a="gStock" ${got.length?'':'disabled'}>Put ticked away</button>
-    <button class="btn ghost" data-a="gClear" ${got.length?'':'disabled'}>Clear ticked</button>
+    <button class="btn ghost" data-a="gUntick" ${got.length?'':'disabled'}>Untick all</button>
   </div>`;
 }
 
@@ -121,17 +120,24 @@ function recipeStatus(r){
   const have=parts.filter(p=>p.have).length;return{parts,have,total:parts.length,missing:parts.filter(p=>!p.have)};
 }
 const ranked=()=>S.recipes.map(r=>({r,s:recipeStatus(r)})).sort((a,b)=>b.s.have/(b.s.total||1)-a.s.have/(a.s.total||1)||a.s.missing.length-b.s.missing.length);
-let picked='';
+let picked='',recCuisine='all',recQuick=false;
+const RICONS=['🍽️','🍝','🍚','🍛','🍜','🥘','🍲','🥗','🍳','🥪','🌮','🍕','🍣','🥞','🍰'];
+const cuisines=()=>[...new Set(S.recipes.map(r=>r.cuisine).filter(Boolean))].sort();
 function vRecipes(){
-  const list=ranked();
+  const cs=cuisines();if(recCuisine!=='all'&&!cs.includes(recCuisine))recCuisine='all';
+  const list=ranked().filter(({r})=>(recCuisine==='all'||r.cuisine===recCuisine)&&(!recQuick||(+r.time>0&&+r.time<=30)));
   return `<div class="head"><h1>What can we cook?</h1><div class="row end"><button class="btn clay" data-a="cSurprise">Surprise me</button><button class="btn soft" data-a="cPaste">Paste recipes</button><button class="btn" data-a="cNew">Add recipe</button></div></div>
-  ${list.length?`<div class="grid">${list.map(({r,s})=>{const toAdd=s.missing.filter(p=>!p.listed);return `<div class="card rc ${picked===r.id?'pick':''}" id="rc-${r.id}"><h2><span>${esc(r.t)}</span><button class="ico" data-a="cEdit" data-id="${r.id}" aria-label="Edit ${esc(r.t)}">✎</button></h2>
+  <div class="row" style="margin-bottom:16px">${cs.length?`<div class="seg">${['all',...cs].map(c=>`<button class="${recCuisine===c?'on':''}" data-a="cCuisine" data-k="${esc(c)}">${c==='all'?'All cuisines':esc(c)}</button>`).join('')}</div>`:''}<div class="seg"><button class="${recQuick?'on':''}" data-a="cQuick">30 min or less</button></div></div>
+  ${list.length?`<div class="grid">${list.map(({r,s})=>{const toAdd=s.missing.filter(p=>!p.listed);return `<div class="card rc ${picked===r.id?'pick':''}" id="rc-${r.id}"><h2><span class="ricon" aria-hidden="true">${esc(r.icon)}</span><span>${esc(r.t)}</span><button class="ico" data-a="cEdit" data-id="${r.id}" aria-label="Edit ${esc(r.t)}">✎</button></h2>
+    <div class="row" style="margin:10px 0 8px">${r.time?`<span class="chip">${esc(r.time)} min</span>`:''}${r.cuisine?`<span class="chip listed">${esc(r.cuisine)}</span>`:''}</div>
     <div class="muted">${s.missing.length?`You have ${s.have} of ${s.total}`:'Ready to cook'}</div><div class="bar"><div style="width:${s.total?s.have/s.total*100:100}%"></div></div>
     <div class="chips">${s.parts.map(p=>`<span class="chip ${p.have?'have':p.listed?'listed':'miss'}">${esc(p.n)}</span>`).join('')}</div>
-    ${s.missing.length?`<button class="btn sm" data-a="cAddMissing" data-id="${r.id}" ${toAdd.length?'':'disabled'}>${toAdd.length?`Add ${toAdd.length} missing to list`:'Missing items are on the list'}</button>`:''}</div>`}).join('')}</div>`:`<div class="card empty">Add your recipes to see what you can cook from what is in stock.</div>`}
+    ${s.missing.length?`<button class="btn sm" data-a="cAddMissing" data-id="${r.id}" ${toAdd.length?'':'disabled'}>${toAdd.length?`Add ${toAdd.length} missing to list`:'Missing items are on the list'}</button>`:''}</div>`}).join('')}</div>`:`<div class="card empty">${S.recipes.length?'No recipes match that filter.':'Add your recipes to see what you can cook from what is in stock.'}</div>`}
   <p class="muted" style="margin-top:14px">Green is in your kitchen, orange is missing, purple is already on the grocery list.</p>`;
 }
-function recipeForm(r){return `<label>Recipe name</label><input name="t" value="${esc(r.t)}" required><label>Ingredients, one per line</label><textarea name="ing" rows="8" placeholder="2 eggs&#10;200g pasta&#10;garlic">${esc(r.ing.join('\n'))}</textarea>`}
+function recipeForm(r){return `<label>Recipe name</label><input name="t" value="${esc(r.t)}" required>
+  <div class="row" style="align-items:flex-end"><div style="flex:0 0 92px"><label>Icon</label><select name="icon">${RICONS.map(i=>`<option ${r.icon===i?'selected':''}>${i}</option>`).join('')}</select></div><div style="flex:1;min-width:96px"><label>Time (minutes)</label><input type="number" name="time" min="1" inputmode="numeric" value="${esc(r.time||'')}" placeholder="30"></div><div style="flex:2;min-width:130px"><label>Cuisine</label><input name="cuisine" value="${esc(r.cuisine||'')}" placeholder="e.g. Indian" list="cuisines"><datalist id="cuisines">${[...new Set([...cuisines(),'Indian','Italian','Chinese','Thai','Japanese','Mexican','Western'])].map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div></div>
+  <label>Ingredients, one per line</label><textarea name="ing" rows="8" placeholder="2 eggs&#10;200g pasta&#10;garlic">${esc(r.ing.join('\n'))}</textarea>`}
 function parseRecipes(text){
   return text.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean).map(b=>{
     let lines=b.split('\n').map(l=>l.replace(/^[-•*]\s*/,'').trim()).filter(Boolean),t=lines.shift(),ing=lines;
@@ -149,7 +155,7 @@ function spinItems(){
   const ready=S.recipes.filter(r=>!recipeStatus(r).missing.length);return(ready.length>=2?ready:S.recipes).map(r=>r.t);
 }
 function drawWheel(){
-  const c=$('#wheel');if(!c)return;const items=spinItems(),n=items.length,d=devicePixelRatio||1,sz=c.clientWidth;
+  const c=$('#wheel');if(!c)return;const items=spinItems(),n=items.length,d=Math.min(devicePixelRatio||1,2),sz=c.clientWidth;
   c.width=c.height=sz*d;const x=c.getContext('2d');x.scale(d,d);const R=sz/2;x.translate(R,R);
   if(!n){x.fillStyle='#e9e4e1';x.beginPath();x.arc(0,0,R,0,7);x.fill();return}
   const seg=Math.PI*2/n;
@@ -164,7 +170,7 @@ function drawWheel(){
 function confetti(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   const w=$('.wheelbox');if(!w)return;const r=w.getBoundingClientRect(),c=document.createElement('canvas');c.id='confetti';c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);
-  const x=c.getContext('2d'),P=Array.from({length:120},()=>{const a=Math.random()*Math.PI*2,v=5+Math.random()*10;return{x:r.left+r.width/2,y:r.top+r.height/2,vx:Math.cos(a)*v,vy:Math.sin(a)*v-5,s:6+Math.random()*7,c:PAL[Math.floor(Math.random()*4)],r:Math.random()*6,vr:(Math.random()-.5)*.4}}),t0=performance.now();
+  const x=c.getContext('2d'),P=Array.from({length:innerWidth<600?55:110},()=>{const a=Math.random()*Math.PI*2,v=5+Math.random()*10;return{x:r.left+r.width/2,y:r.top+r.height/2,vx:Math.cos(a)*v,vy:Math.sin(a)*v-5,s:6+Math.random()*7,c:PAL[Math.floor(Math.random()*4)],r:Math.random()*6,vr:(Math.random()-.5)*.4}}),t0=performance.now();
   (function f(t){const k=(t-t0)/2000;if(k>=1){c.remove();return}x.clearRect(0,0,c.width,c.height);x.globalAlpha=1-k*k;
     for(const p of P){p.vy+=.35;p.vx*=.985;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/3,p.s,p.s*.66);x.restore()}
     requestAnimationFrame(f)})(t0);
@@ -174,19 +180,21 @@ function spin(){
   const i=Math.floor(Math.random()*n),seg=360/n,jit=(Math.random()-.5)*seg*.7,box=$('.wheelbox'),res=$('#result');
   rot=rot-(rot%360)+360*8+(360-(i+.5)*seg)+jit;spinning=true;spinResult='';$('#after').innerHTML='';
   box.classList.remove('win');box.classList.add('go');res.className='result rolling';
-  const roll=setInterval(()=>{const e=$('#result');if(e)e.textContent=items[Math.floor(Math.random()*n)]},110);
-  $('#wheel').style.transform=`rotate(${rot}deg)`;
-  setTimeout(()=>{clearInterval(roll);spinning=false;spinResult=items[i];if(tab!=='spin'||!$('#result')){if(stale)softRender();return}
+  const roll=setInterval(()=>{const e=$('#result');if(e)e.textContent=items[Math.floor(Math.random()*n)]},160);
+  const w=$('#wheel');w.style.transition='';void w.offsetWidth;w.style.transform=`rotate(${rot}deg)`;
+  let fin=false;
+  const done=()=>{if(fin)return;fin=true;clearInterval(roll);spinning=false;spinResult=items[i];if(tab!=='spin'||!$('#result')){if(stale)softRender();return}
     $('.wheelbox').classList.remove('go');$('.wheelbox').classList.add('win');
     const r=$('#result');r.textContent=items[i];r.className='result pop';confetti();
     let h='';if(spinMode==='decide')h=items[i]==='Cook'?`<button class="btn leaf" data-a="sMode" data-k="cook">Now spin what to cook</button>`:`<button class="btn" data-a="sMode" data-k="out">Now spin where to go</button>`;
     else h=`<button class="btn soft" data-a="sTell">Tell the group</button>`+(spinMode==='cook'?` <button class="btn soft" data-a="sRecipe">See recipe</button>`:'');
-    $('#after').innerHTML=h;if(stale)softRender()},5100);
+    $('#after').innerHTML=h;if(stale)softRender()};
+  w.addEventListener('transitionend',done,{once:true});setTimeout(done,5000);
 }
 function vSpin(){
   return `<div class="head"><h1>What are we eating?</h1></div>
   <div class="spin"><div class="card" style="text-align:center"><div class="seg">${[['decide','Cook or out?'],['cook','What to cook'],['out','Where to eat']].map(([k,l])=>`<button class="${spinMode===k?'on':''}" data-a="sMode" data-k="${k}">${l}</button>`).join('')}</div>
-  <div class="wheelbox"><canvas id="wheel" style="transform:rotate(${rot}deg);transition:none"></canvas><button class="hub" data-a="spin">SPIN</button></div>
+  <div class="wheelbox"><div class="ring"></div><canvas id="wheel" style="transform:rotate(${rot}deg);transition:none"></canvas><button class="hub" data-a="spin">SPIN</button></div>
   <div class="result" id="result">${esc(spinResult)}</div><div class="row" id="after" style="justify-content:center;min-height:44px"></div></div>
   <div class="card"><h2>Eat-out spots</h2><div class="chips">${S.eatout.map((e,i)=>`<span class="chip">${esc(e)}<button data-a="eDel" data-i="${i}" aria-label="Remove ${esc(e)}">✕</button></span>`).join('')||'<span class="muted">Add your go-to places.</span>'}</div>
   <form class="addbar" data-f="eAdd" style="margin:0"><input name="t" placeholder="Add a place" autocomplete="off"><button class="btn">Add</button></form>
@@ -223,7 +231,7 @@ function vNotes(){
     <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-a="nUndo">Undo</button><button class="btn sm ghost" data-a="nWipe">Clear</button></div>
     <div class="row" style="margin-top:12px"><input id="cap" placeholder="Caption (optional)" style="flex:1;min-width:160px"></div>
     <div class="row" style="margin-top:10px"><button class="btn" data-a="nSendDoodle">Send to ${esc(destName())}</button><button class="btn soft" data-a="nShareDoodle">Share (WhatsApp)</button></div></div>
-  <div><div class="card" style="margin-bottom:16px"><h2>Voice note</h2><div id="voicebox"></div></div>
+  <div><div class="card"><h2>Voice note</h2><div id="voicebox"></div></div>
   <div class="card"><h2>Reminder</h2><form data-f="nRemind"><textarea name="t" rows="2" placeholder="Don't forget the dry cleaning" required></textarea>
     <div class="row" style="margin-top:10px"><button class="btn">Send to ${esc(destName())}</button><button type="button" class="btn soft" data-a="nRemindSc">Via iPhone Shortcut</button><button type="button" class="btn soft" data-a="nRemindShare">Share</button></div></form></div></div></div>`;
 }
@@ -260,7 +268,7 @@ function vHome(){
   ${tgReady()?'':`<div class="card"><h2>Connect your Telegram group</h2><p class="muted" style="margin-bottom:12px">One-time step. Add your bot to the group, send a message there, paste the bot token and tap Find chats and topics. You can fine-tune topics later in Settings.</p>${tgPanel()}</div>`}
   <div class="grid two"><div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Grocery list</h2><button class="btn sm ghost" data-a="go" data-k="groceries">Open list</button></div>
     ${gForm()}<ul class="glist">${need.length?need.slice(0,6).map(gLi).join('')+(need.length>6?`<li class="muted" style="font-weight:500">and ${need.length-6} more</li>`:''):'<li class="muted" style="font-weight:500">All stocked up.</li>'}</ul></div>
-  <div><div class="card" style="margin-bottom:16px"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Tonight</h2><button class="btn sm ghost" data-a="go" data-k="spin">Spin the wheel</button></div>
+  <div><div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Tonight</h2><button class="btn sm ghost" data-a="go" data-k="spin">Spin the wheel</button></div>
     ${t?`<p style="font-weight:700">${esc(t.r.t)}</p><p class="muted" style="margin:4px 0 12px">${t.s.missing.length?'You would need '+esc(t.s.missing.map(p=>p.n).join(', '))+'.':'You have everything for it.'}</p>${toAdd.length?`<button class="btn sm" data-a="cAddMissing" data-id="${t.r.id}">Add ${toAdd.length} missing to list</button>`:''}`:'<p class="muted">Add a recipe and it will show up here.</p>'}</div>
   <div class="card"><div class="row" style="margin-bottom:6px"><h2 style="margin:0;flex:1">Coming up at home</h2><button class="btn sm ghost" data-a="go" data-k="routines">All routines</button></div>
     ${rs.length?rs.slice(0,3).map(r=>rItem(r,false)).join(''):'<p class="muted">No routines yet.</p>'}</div></div></div>`;
@@ -279,8 +287,8 @@ function vSettings(){
   ${GATED?`<div class="card"><h2>Two-step sign-in</h2><p class="muted">Adds a 6-digit code from an authenticator app on top of the password, every time someone signs in.</p><div id="mfabox" style="margin-top:12px"></div></div>`:''}
   <div class="card"><h2>Telegram</h2><p class="muted" style="margin-bottom:12px">Re-pick the group, or send each kind of message to its own topic or a different group.</p>${tgPanel()}
     <details><summary>How to add a topic or another group</summary><ol><li>Make sure the bot is a member of the group (Group Privacy turned off in @BotFather).</li><li>Send one message inside each topic you want to use, and in any other group.</li><li>Tap <b>Find chats and topics</b>. Each topic then appears in the lists above as Group › Topic.</li><li>Pick where each kind of message goes, then tap <b>Send a test</b>.</li></ol></details></div>
-  <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scNotes','Shortcut that saves the grocery list to Notes')}${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}${f('scAlarm','Shortcut that sets an alarm for a routine')}
-    <details><summary>How to make the two shortcuts</summary><p class="muted"><b>${esc(s.scNotes)}</b>: in the Shortcuts app tap +, add the action Append to Note, set the text to Shortcut Input and choose a shared note called Groceries. Name the shortcut exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scAlarm)}</b>: new shortcut with four actions. 1) Split Text: split Shortcut Input by New Lines. 2) Get Item from List: First Item. 3) Get Item from List: Last Item, from the Split Text result. 4) Create Alarm: set the time to the first item and the label to the last item. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Share the Notes note with your partner so it shows on both phones. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
+  <div class="card"><h2>iPhone and iPad Shortcuts</h2>${f('scMsg','Shortcut that sends a message (WhatsApp or iMessage)')}${f('scAlarm','Shortcut that sets an alarm for a routine')}
+    <details><summary>How to make the shortcuts</summary><p class="muted" style="margin-top:8px"><b>${esc(s.scMsg)}</b>: new shortcut, add Send Message via WhatsApp (or Send Message for iMessage), set the message to Shortcut Input and the recipient to your partner. Name it exactly as above.</p><p class="muted" style="margin-top:8px"><b>${esc(s.scAlarm)}</b>: new shortcut with four actions. 1) Split Text: split Shortcut Input by New Lines. 2) Get Item from List: First Item. 3) Get Item from List: Last Item, from the Split Text result. 4) Create Alarm: set the time to the first item and the label to the last item. Name it exactly as above.</p><p class="muted" style="margin-top:8px">Shortcuts must exist on the device running this app. Doodles and voice notes reach WhatsApp through the Share button.</p></details></div>
   </div><div>
   <div class="card"><h2>Backup</h2><p class="muted">Save a copy of everything now and then.</p><div class="row" style="margin-top:12px"><button class="btn soft" data-a="bExport">Download backup</button><button class="btn soft" data-a="bImport">Restore backup</button><button class="btn ghost" data-a="bReset">Reset app</button></div><input type="file" id="bfile" accept="application/json,.json" hidden></div>
   </div></div>`;
@@ -343,11 +351,10 @@ const A={
   mic:(d,b)=>mic(b),
   gTick:d=>{const g=byId(S.groceries,d.id);if(!g)return;g.done=!g.done;groceryChanged();render()},
   gDel:d=>{S.groceries=S.groceries.filter(g=>g.id!==d.id);groceryChanged();render()},
-  gClear:()=>{S.groceries=S.groceries.filter(g=>!g.done);groceryChanged();render()},
+  gUntick:()=>{S.groceries.forEach(g=>{g.done=false});groceryChanged();render()},
   gStock:()=>{const got=S.groceries.filter(g=>g.done);for(const g of got){if(!S.inv.some(x=>norm(x.t)===norm(g.t)))S.inv.push({id:uid(),t:g.t[0].toUpperCase()+g.t.slice(1),qty:'',loc:FREEZE.test(g.t)?'freezer':FRIDGE.test(g.t)?'fridge':'pantry',exp:''})}
     S.groceries=S.groceries.filter(g=>!g.done);groceryChanged();render();toast(`${plural(got.length,'item')} put away`)},
   gSend:()=>sendGroceries(true),
-  gNotes:()=>runShortcut(S.settings.scNotes,new Date().toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'})+'\n'+S.groceries.filter(g=>!g.done).map(g=>'- '+g.t).join('\n')),
   gShare:()=>share({text:groceryText()}),
   iFilter:d=>{invFilter=d.k;render()},
   iOut:d=>{const x=byId(S.inv,d.id);if(!x)return;S.inv=S.inv.filter(i=>i.id!==d.id);addGroceries([x.t],true);save();render();toast(`${x.t} added to the grocery list`)},
@@ -356,8 +363,10 @@ const A={
   rEdit:d=>{const r=byId(S.routines,d.id);if(r)modal('Edit routine',routineForm(r),v=>Object.assign(r,v,{every:Math.max(1,+v.every||1)}),()=>{S.routines=S.routines.filter(i=>i!==r)})},
   rDone:d=>{const r=byId(S.routines,d.id);if(!r)return;r.last=today();save();render();toast(`${r.t} done. Next in ${plural(+r.every,'day')}.`)},
   rNudge:d=>{const r=byId(S.routines,d.id),n=dueIn(r);tgSafe('sendMessage',{...target('routines'),text:`🔔 ${r.t}: ${n<0?plural(-n,'day')+' overdue':n===0?'due today':'due in '+plural(n,'day')} (nudge from ${me()})`},'Nudge sent')},
-  cNew:()=>modal('New recipe',recipeForm({t:'',ing:[]}),v=>S.recipes.push({id:uid(),t:v.t,ing:lines(v.ing)})),
-  cEdit:d=>{const r=byId(S.recipes,d.id);if(r)modal('Edit recipe',recipeForm(r),v=>{r.t=v.t;r.ing=lines(v.ing)},()=>{S.recipes=S.recipes.filter(i=>i!==r)})},
+  cNew:()=>modal('New recipe',recipeForm({t:'',ing:[]}),v=>S.recipes.push({id:uid(),t:v.t,ing:lines(v.ing),icon:v.icon,time:v.time,cuisine:v.cuisine.trim()})),
+  cCuisine:d=>{recCuisine=d.k;render()},
+  cQuick:()=>{recQuick=!recQuick;render()},
+  cEdit:d=>{const r=byId(S.recipes,d.id);if(r)modal('Edit recipe',recipeForm(r),v=>{r.t=v.t;r.ing=lines(v.ing);r.icon=v.icon;r.time=v.time;r.cuisine=v.cuisine.trim()},()=>{S.recipes=S.recipes.filter(i=>i!==r)})},
   cPaste:()=>modal('Paste recipes',`<p class="muted">Recipe name on the first line, ingredients underneath, a blank line between recipes. Or one per line: <code>Name: a, b, c</code></p><textarea name="txt" rows="10" style="margin-top:10px" placeholder="Dal tadka&#10;lentils&#10;onion&#10;tomatoes&#10;&#10;Pancakes: flour, eggs, milk"></textarea>`,v=>{const rs=parseRecipes(v.txt);S.recipes.push(...rs);toast(`Added ${plural(rs.length,'recipe')}`)}),
   cAddMissing:d=>{const r=byId(S.recipes,d.id);if(r){addGroceries(recipeStatus(r).missing.filter(p=>!p.listed).map(p=>p.n));render()}},
   cSurprise:()=>{if(!S.recipes.length){toast('Add a recipe first');return}const st=ranked(),ready=st.filter(x=>!x.s.missing.length),pool=ready.length?ready:st.slice().sort((a,b)=>a.s.missing.length-b.s.missing.length).slice(0,3),p=pool[Math.floor(Math.random()*pool.length)];
