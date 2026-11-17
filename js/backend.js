@@ -29,7 +29,10 @@ const DEFAULTS=()=>({
     {id:uid(),t:'Tomato soup and grilled cheese',icon:'🍲',time:'30',cuisine:'Western',ing:['tomatoes','onion','garlic','bread','cheese','butter']},
     {id:uid(),t:'Veggie omelette',icon:'🍳',time:'10',cuisine:'Western',ing:['eggs','onion','bell pepper','cheese','butter']}],
   eatout:['Pizza','Sushi','Thai','Burgers','Our usual café','Tacos'],
-  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{},aiKey:''},
+  settings:{a:'Me',b:'Partner',token:'',chat:'',chatA:'',chatB:'',auto:true,digest:true,scNotes:'Nest Groceries',scMsg:'Nest Message',scAlarm:'Nest Alarm',dests:[],route:{},aiKey:'',scenes:[
+    {id:'sc1',t:'Arrive home',sc:'Arrive Home',icon:'arrive'},{id:'sc2',t:'Leave home',sc:'Leave Home',icon:'leave'},
+    {id:'sc3',t:'Dim lights',sc:'Dim Lights',icon:'dim'},{id:'sc4',t:"It's too hot",sc:'Too Hot',icon:'hot'},
+    {id:'sc5',t:"It's too cold",sc:'Too Cold',icon:'cold'},{id:'sc6',t:'All lights off',sc:'All Lights Off',icon:'power'}]},
   lastDigest:'',lastSent:''
 });
 const DS=DEFAULTS().settings,LISTS=['groceries','inv','routines','recipes','eatout'];
@@ -45,7 +48,7 @@ function fix(){
   for(const k of LISTS){const v=S[k];S[k]=Array.isArray(v)?v.filter(x=>x!=null):v&&typeof v==='object'?Object.values(v):[]}
   S.recipes.forEach(r=>{r.ing=Array.isArray(r.ing)?r.ing:r.ing?Object.values(r.ing):[];r.icon=r.icon||'🍽️';r.time=r.time||'';r.cuisine=r.cuisine||'';r.url=r.url||''});
   S.inv.forEach(x=>{x.qty=x.qty||'';x.exp=x.exp||'';x.loc=x.loc||'pantry'});
-  S.settings={...DS,...S.settings};const st=S.settings;st.dests=Array.isArray(st.dests)?st.dests.filter(Boolean):st.dests&&typeof st.dests==='object'?Object.values(st.dests):[];st.route=st.route&&typeof st.route==='object'?st.route:{};S.lastDigest=S.lastDigest||'';S.lastSent=S.lastSent||'';
+  S.settings={...DS,...S.settings};const st=S.settings;st.dests=Array.isArray(st.dests)?st.dests.filter(Boolean):st.dests&&typeof st.dests==='object'?Object.values(st.dests):[];st.route=st.route&&typeof st.route==='object'?st.route:{};st.scenes=Array.isArray(st.scenes)?st.scenes.filter(x=>x&&x.t):st.scenes&&typeof st.scenes==='object'?Object.values(st.scenes).filter(x=>x&&x.t):DEFAULTS().settings.scenes;S.lastDigest=S.lastDigest||'';S.lastSent=S.lastSent||'';
 }
 fix();
 const local=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -139,7 +142,7 @@ async function tgSafe(method,fields,okMsg){
   if(!fields.chat_id){toast('No Telegram chat is set for that yet');return false}
   try{await tg(method,fields);if(okMsg)toast(okMsg);return true}catch(e){toast('Telegram: '+e.message);return false}
 }
-function runShortcut(name,text){location.href='shortcuts://run-shortcut?name='+encodeURIComponent(name)+'&input=text&text='+encodeURIComponent(text)}
+function runShortcut(name,text){try{location.href='shortcuts://run-shortcut?name='+encodeURIComponent(name)+(text==null?'':'&input=text&text='+encodeURIComponent(text))}catch(e){}}
 async function share(data){
   try{if(data.files&&!(navigator.canShare&&navigator.canShare({files:data.files})))throw 0;
     if(!navigator.share)throw 0;await navigator.share(data)}

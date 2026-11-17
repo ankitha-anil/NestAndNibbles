@@ -303,6 +303,7 @@ function vHome(){
     <button class="tile t3" data-a="go" data-k="routines"><span>Routines due</span><b>${due.length}</b></button>
     <button class="tile t4" data-a="go" data-k="inv"><span>In the kitchen</span><b>${S.inv.length}</b></button>
   </div>
+  <div class="scenerow">${S.settings.scenes.map(s=>`<button class="pillbtn" data-a="hRun" data-id="${s.id}"><svg viewBox="0 0 24 24">${SICON[s.icon]||SICON.bulb}</svg>${esc(s.t)}</button>`).join('')}<button class="pillbtn" data-a="go" data-k="control"><svg viewBox="0 0 24 24">${I.control}</svg>Edit</button></div>
   ${tgReady()?'':`<div class="card"><h2>Connect your Telegram group</h2><p class="muted" style="margin-bottom:12px">One-time step. Add your bot to the group, send a message there, paste the bot token and tap Find chats and topics. You can fine-tune topics later in Settings.</p>${tgPanel()}</div>`}
   <div class="grid two"><div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0;flex:1">Grocery list</h2><button class="btn sm ghost" data-a="go" data-k="groceries">Open list</button></div>
     ${gForm()}<ul class="glist">${need.length?need.slice(0,6).map(gLi).join('')+(need.length>6?`<li class="muted" style="font-weight:500">and ${need.length-6} more</li>`:''):'<li class="muted" style="font-weight:500">All stocked up.</li>'}</ul></div>
@@ -311,6 +312,29 @@ function vHome(){
   <div class="card"><div class="row" style="margin-bottom:6px"><h2 style="margin:0;flex:1">Coming up at home</h2><button class="btn sm ghost" data-a="go" data-k="routines">All routines</button></div>
     ${rs.length?rs.slice(0,3).map(r=>rItem(r,false)).join(''):'<p class="muted">No routines yet.</p>'}</div></div></div>`;
 }
+
+/* ---------- home controls ---------- */
+const SICON={
+  arrive:'<path d="M13 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M3 12h10M10 8l3 4-3 4"/>',
+  leave:'<path d="M11 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/><path d="M10 12h11M18 8l3 4-3 4"/>',
+  dim:'<circle cx="12" cy="12" r="4.5"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21"/>',
+  hot:'<path d="M10 4a2 2 0 0 1 4 0v9.3a4 4 0 1 1-4 0z"/><path d="M12 8v8"/>',
+  cold:'<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/>',
+  power:'<path d="M12 3v8"/><path d="M6.6 7.2a7.5 7.5 0 1 0 10.8 0"/>',
+  bulb:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5c-.8.7-1 1.4-1 2.5h-6c0-1.1-.2-1.8-1-2.5A6 6 0 0 1 12 3z"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  music:'<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/>',
+  tv:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 21h6"/>'};
+const SNAMES={arrive:'Coming home',leave:'Leaving',dim:'Dim light',hot:'Heat',cold:'Cold',power:'Power',bulb:'Light',lock:'Lock',music:'Music',tv:'TV'};
+let sceneEdit=false;
+function vControl(){
+  return `<div class="head"><h1>Home controls</h1><div class="row end"><button class="btn soft" data-a="hAdd">Add button</button>${S.settings.scenes.length?`<button class="btn ghost" data-a="hEdit">${sceneEdit?'Done':'Edit'}</button>`:''}</div></div>
+  <p class="muted" style="margin:-8px 0 16px">${sceneEdit?'Tap a button to change or remove it.':'One tap runs the matching shortcut on this device, and the shortcut talks to your Home accessories.'}</p>
+  <div class="scenes">${S.settings.scenes.map((s,i)=>`<button class="scene" data-a="${sceneEdit?'hEditOne':'hRun'}" data-id="${s.id}"><span class="sic c${i%4}"><svg viewBox="0 0 24 24">${SICON[s.icon]||SICON.bulb}</svg></span><b>${esc(s.t)}</b>${sceneEdit?`<small>runs "${esc(s.sc)}"</small>`:''}</button>`).join('')}</div>
+  ${S.settings.scenes.length?'':'<div class="card empty">No buttons yet.</div>'}
+  <div class="card" style="margin-top:18px"><details style="margin:0"><summary>How to make each shortcut</summary><p class="muted" style="margin-top:8px">In the Shortcuts app, tap +, add the action <b>Control Home</b> (or Set Scene), pick what should happen, and name the shortcut exactly what the button runs, for example Arrive Home. The two names must match. Do this on each device you will tap from, since the shortcut runs on the device itself.</p></details></div>`;
+}
+function sceneForm(s){return `<label>Button label</label><input name="t" value="${esc(s.t)}" required placeholder="e.g. Movie night"><label>Shortcut it runs</label><input name="sc" value="${esc(s.sc)}" placeholder="Same as the label" autocapitalize="words"><label>Icon</label><select name="icon">${Object.keys(SICON).map(k=>`<option value="${k}" ${s.icon===k?'selected':''}>${SNAMES[k]}</option>`).join('')}</select>`}
 
 /* ---------- settings ---------- */
 function vSettings(){
@@ -348,9 +372,10 @@ const I={home:'<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-
   spin:'<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/>',
   notes:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.600-7 10-7 10z"/>',
   settings:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  control:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5c-.8.7-1 1.4-1 2.5h-6c0-1.1-.2-1.8-1-2.5A6 6 0 0 1 12 3z"/>',
   more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'};
-const TABS=[['home','Home'],['groceries','List'],['inv','Kitchen'],['recipes','Recipes'],['spin','Decide'],['routines','Routines'],['notes','Notes'],['settings','Settings']];
-const VIEWS={home:vHome,groceries:vGroceries,inv:vInv,routines:vRoutines,recipes:vRecipes,spin:vSpin,notes:vNotes,settings:vSettings};
+const TABS=[['home','Home'],['groceries','List'],['inv','Kitchen'],['recipes','Recipes'],['spin','Decide'],['routines','Routines'],['notes','Notes'],['control','Control'],['settings','Settings']];
+const VIEWS={home:vHome,groceries:vGroceries,inv:vInv,routines:vRoutines,recipes:vRecipes,spin:vSpin,notes:vNotes,control:vControl,settings:vSettings};
 const PRIMARY=['home','groceries','inv','recipes'];
 let moreOpen=false;
 function renderNav(){
@@ -444,6 +469,10 @@ const A={
   vShare:()=>{const ext=/ogg/.test(voice.type)?'ogg':/webm/.test(voice.type)?'webm':'m4a';share({files:[new File([voice.blob],'voice-note.'+ext,{type:voice.type})]})},
   nRemindSc:(d,b)=>{const t=b.form.t.value.trim();if(!t){toast('Write the reminder first');return}runShortcut(S.settings.scMsg,'🔔 '+t)},
   nRemindShare:(d,b)=>{const t=b.form.t.value.trim();if(!t){toast('Write the reminder first');return}share({text:'🔔 '+t})},
+  hRun:d=>{const s=S.settings.scenes.find(x=>x.id===d.id);if(!s)return;toast('Running "'+s.sc+'"');runShortcut(s.sc)},
+  hEdit:()=>{sceneEdit=!sceneEdit;render()},
+  hAdd:()=>modal('New home button',sceneForm({t:'',sc:'',icon:'bulb'}),v=>{S.settings.scenes=[...S.settings.scenes,{id:uid(),t:v.t,sc:v.sc.trim()||v.t,icon:v.icon}]}),
+  hEditOne:d=>{const s=S.settings.scenes.find(x=>x.id===d.id);if(!s)return;modal('Edit home button',sceneForm(s),v=>{S.settings.scenes=S.settings.scenes.map(x=>x.id===s.id?{...x,t:v.t,sc:v.sc.trim()||v.t,icon:v.icon}:x)},()=>{S.settings.scenes=S.settings.scenes.filter(x=>x.id!==s.id)})},
   who:d=>{L.who=d.k;saveL();render()},
   tTest:async()=>{if(!S.settings.chat){toast('Choose the main group first');return}
     let ok=await tgSafe('sendMessage',{chat_id:S.settings.chat,text:'🏡 Nest & Nibbles is connected!'},'Test sent');
